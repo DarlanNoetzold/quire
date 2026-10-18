@@ -1,15 +1,24 @@
 const ROTULO_TIPO = {
-  artigo_periodico: "Artigo de periódico", preprint: "Preprint", revisao: "Revisão",
-  capitulo_livro: "Capítulo de livro", anais_congresso: "Anais de congresso",
-  livro: "Livro", tese_dissertacao: "Tese/Dissertação", relatorio: "Relatório",
+  artigo_periodico: "Journal article", preprint: "Preprint", revisao: "Review",
+  capitulo_livro: "Book chapter", anais_congresso: "Conference proceedings",
+  livro: "Book", tese_dissertacao: "Thesis/Dissertation", relatorio: "Report",
+};
+const ROTULO_FONTE = {
+  openalex: "OpenAlex", arxiv: "arXiv", semanticscholar: "Semantic Scholar",
+  pubmed: "PubMed", crossref: "Crossref", doaj: "DOAJ", europepmc: "Europe PMC",
+  manual: "Manual",
 };
 const ROTULO_PDF = {
-  nao_baixado: "Sem download", nao_disponivel: "Sem versão aberta", baixando: "Baixando…",
-  baixado: "PDF baixado", falha: "Falha no download",
+  nao_baixado: "Not downloaded", nao_disponivel: "No open version", baixando: "Downloading…",
+  baixado: "PDF downloaded", falha: "Download failed",
 };
 const ROTULO_RESUMO = {
-  nao_iniciado: "Sem resumo", processando: "Resumindo…", pronto: "Resumo pronto", falha: "Falha no resumo",
+  nao_iniciado: "No summary", processando: "Summarizing…", pronto: "Summary ready", falha: "Summary failed",
 };
+const CAMPOS_RESUMO = [
+  ["objectives", "Objectives"], ["methodology", "Methodology"], ["results", "Results"],
+  ["contributions", "Contributions"], ["limitations", "Limitations"],
+];
 
 const $ = (id) => document.getElementById(id);
 let categorias = [];
@@ -32,22 +41,14 @@ function toast(msg) {
 }
 
 function selo(classe, texto) {
-  return `<span class="selo ${classe}">${texto}</span>`;
-}
-
-function classeStatus(status, okV, erroV, andandoV, vazioV) {
-  if (status === okV) return "ok";
-  if (status === erroV) return "erro";
-  if (status === andandoV) return "andando";
-  return "vazio";
+  return `<span class="selo ${classe}">${esc(texto)}</span>`;
 }
 
 async function carregarCategorias() {
   try {
     categorias = await api("/api/categorias");
   } catch { categorias = []; }
-  const sel = $("filtro-categoria");
-  sel.innerHTML = '<option value="">Qualquer categoria</option>' +
+  $("filtro-categoria").innerHTML = '<option value="">Any category</option>' +
     categorias.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join("");
 }
 
@@ -60,9 +61,9 @@ function esc(s) {
 function autoresHtml(autores, limite = 4) {
   let lista = autores;
   try { lista = typeof autores === "string" ? JSON.parse(autores) : autores; } catch { lista = []; }
-  if (!Array.isArray(lista) || !lista.length) return "Autores não informados";
+  if (!Array.isArray(lista) || !lista.length) return "Authors not informed";
   const visiveis = lista.slice(0, limite);
-  const resto = lista.length > limite ? ` et al.` : "";
+  const resto = lista.length > limite ? " et al." : "";
   return visiveis.join(", ") + resto;
 }
 
@@ -71,21 +72,22 @@ function cartaoArtigo(a, emBusca = false) {
     ? `<span class="etiqueta-categoria" style="background:${a.categoria_cor || "#4f8cff"}">${esc(a.categoria_nome)}</span>`
     : "";
   const acoesBusca = emBusca ? `
-    <button class="botao-mini" onclick="salvarDaBusca(${JSON.stringify(a).replace(/"/g, "&quot;")})">＋ Adicionar à biblioteca</button>
-    <button class="botao-mini" data-href="${esc(a.url_pagina || "")}" onclick="abrirLink(this)">🔗 Página</button>` : `
-    <button class="botao-mini" onclick="baixarPdf(${a.id})">⭳ ${a.pdf_status === "baixado" ? "Re-baixar" : "Baixar PDF"}</button>
-    <button class="botao-mini" onclick="resumir(${a.id})">✨ Resumir</button>
-    ${a.pdf_status === "baixado" ? `<button class="botao-mini" onclick="abrirPdf(${a.id})">📄 Abrir PDF</button>` : ""}
-    <button class="botao-mini" onclick="abrirDetalhe(${a.id})">Detalhes</button>
+    <button class="botao-mini" onclick="salvarDaBusca(${JSON.stringify(a).replace(/"/g, "&quot;")})">＋ Add to library</button>
+    <button class="botao-mini" data-href="${esc(a.url_pagina || "")}" onclick="abrirLink(this)">🔗 Page</button>` : `
+    <button class="botao-mini" onclick="baixarPdf(${a.id})">⭳ ${a.pdf_status === "baixado" ? "Re-download" : "Download PDF"}</button>
+    <button class="botao-mini" onclick="resumir(${a.id})">✨ Summarize</button>
+    ${a.pdf_status === "baixado" ? `<button class="botao-mini" onclick="abrirPdf(${a.id})">📄 Open PDF</button>` : ""}
+    <button class="botao-mini" onclick="abrirDetalhe(${a.id})">Details</button>
     <button class="botao-mini perigo" onclick="excluir(${a.id})">🗑</button>`;
   const statusPdf = a.pdf_status === "baixando" ? selo("andando", ROTULO_PDF[a.pdf_status]) :
     (a.pdf_status === "baixado" ? selo("ok", ROTULO_PDF[a.pdf_status]) :
      (a.pdf_status === "falha" || a.pdf_status === "nao_disponivel" ? selo("erro", ROTULO_PDF[a.pdf_status]) : selo("vazio", ROTULO_PDF[a.pdf_status])));
-  const resumoStatus = a.resumo_status === "pronto" ? selo("ok", "Resumo pronto") :
-    (a.resumo_status === "processando" ? selo("andando", "Resumindo…") :
-     (a.resumo_status === "falha" ? selo("erro", "Falha no resumo") : selo("vazio", "Sem resumo")));
+  const resumoStatus = a.resumo_status === "pronto" ? selo("ok", "Summary ready") :
+    (a.resumo_status === "processando" ? selo("andando", "Summarizing…") :
+     (a.resumo_status === "falha" ? selo("erro", "Summary failed") : selo("vazio", "No summary")));
+  const oa = a.acesso_aberto ? selo("ok", "Open access") : "";
   return `<article class="cartao">
-    <div class="meta">${cat}${selo("fonte", a.fonte)}${selo("ano", a.ano || "—")}${selo("tipo", ROTULO_TIPO[a.tipo_origem] || a.tipo_origem || "—")}</div>
+    <div class="meta">${cat}${selo("fonte", ROTULO_FONTE[a.fonte] || a.fonte)}${selo("ano", a.ano || "—")}${selo("tipo", ROTULO_TIPO[a.tipo_origem] || a.tipo_origem || "—")}${oa}</div>
     <div class="titulo">${esc(a.titulo)}</div>
     <div class="autores">${autoresHtml(a.autores)}</div>
     ${a.classificacao ? `<div class="autores">🧭 ${esc(a.classificacao)}</div>` : ""}
@@ -108,37 +110,43 @@ document.querySelectorAll(".aba").forEach(b => {
 
 $("botao-buscar").addEventListener("click", buscar);
 $("campo-busca").addEventListener("keydown", e => { if (e.key === "Enter") buscar(); });
-$("filtro-busca-biblioteca").addEventListener("input", listarBiblioteca);
-$("filtro-categoria").addEventListener("change", listarBiblioteca);
-$("filtro-tipo").addEventListener("change", listarBiblioteca);
-$("filtro-status").addEventListener("change", listarBiblioteca);
-$("filtro-resumo").addEventListener("change", listarBiblioteca);
+["filtro-categoria", "filtro-tipo", "filtro-status", "filtro-resumo", "filtro-fonte", "filtro-acesso", "filtro-ordenacao"]
+  .forEach(id => $(id).addEventListener("change", listarBiblioteca));
+["filtro-busca-biblioteca", "filtro-ano-min", "filtro-ano-max"]
+  .forEach(id => $(id).addEventListener("input", debounce(listarBiblioteca, 400)));
 $("limpar-filtros").addEventListener("click", () => {
-  ["filtro-categoria", "filtro-tipo", "filtro-status", "filtro-resumo", "filtro-busca-biblioteca"]
+  ["filtro-categoria", "filtro-tipo", "filtro-status", "filtro-resumo", "filtro-fonte", "filtro-acesso", "filtro-ordenacao"]
     .forEach(id => { $(id).value = ""; });
+  ["filtro-busca-biblioteca", "filtro-ano-min", "filtro-ano-max"].forEach(id => { $(id).value = ""; });
   listarBiblioteca();
 });
 $("fechar-modal").addEventListener("click", () => $("modal-detalhe").hidden = true);
 $("modal-detalhe").addEventListener("click", e => { if (e.target === $("modal-detalhe")) $("modal-detalhe").hidden = true; });
 
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
 async function buscar() {
   const q = $("campo-busca").value.trim();
-  if (!q) { toast("Digite palavras-chave para buscar"); return; }
+  if (!q) { toast("Type keywords to search"); return; }
   const tipo = $("filtro-tipo-busca").value;
   const params = new URLSearchParams({ q });
   if (tipo) params.set("tipo_origem", tipo);
   if ($("ano-min").value) params.set("ano_min", $("ano-min").value);
   if ($("ano-max").value) params.set("ano_max", $("ano-max").value);
-  $("status-busca").textContent = "Buscando...";
+  $("status-busca").textContent = "Searching...";
   try {
+    const t0 = Date.now();
     const resultados = await api("/api/busca?" + params.toString());
-    $("status-busca").textContent = `${resultados.length} resultado(s)`;
+    $("status-busca").textContent = `${resultados.length} result(s) in ${((Date.now() - t0) / 1000).toFixed(1)}s`;
     const div = $("resultados-busca");
     div.innerHTML = resultados.length
       ? resultados.map(r => cartaoArtigo(r, true)).join("")
-      : '<p class="vazio">Nenhum artigo encontrado. Tente outras palavras-chave.</p>';
+      : '<p class="vazio">No articles found. Try other keywords.</p>';
   } catch (e) {
-    $("status-busca").textContent = "Erro na busca: " + e.message;
+    $("status-busca").textContent = "Search error: " + e.message;
   }
 }
 
@@ -149,82 +157,95 @@ async function salvarDaBusca(r) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(r),
     });
-    toast("Artigo adicionado à biblioteca");
-    $("status-busca").textContent = "Adicionado ✓";
-  } catch (e) { toast("Erro: " + e.message); }
+    toast("Article added to library");
+    $("status-busca").textContent = "Added ✓";
+  } catch (e) { toast("Error: " + e.message); }
 }
 
 async function listarBiblioteca() {
   const params = new URLSearchParams();
-  if ($("filtro-categoria").value) params.set("categoria_id", $("filtro-categoria").value);
-  if ($("filtro-tipo").value) params.set("tipo_origem", $("filtro-tipo").value);
-  if ($("filtro-status").value) params.set("pdf_status", $("filtro-status").value);
-  if ($("filtro-resumo").value) params.set("tem_resumo", $("filtro-resumo").value);
+  const mapear = (id, nome) => { if ($(id).value) params.set(nome, $(id).value); };
+  mapear("filtro-categoria", "categoria_id");
+  mapear("filtro-tipo", "tipo_origem");
+  mapear("filtro-status", "pdf_status");
+  mapear("filtro-resumo", "tem_resumo");
+  mapear("filtro-fonte", "fonte");
+  if ($("filtro-acesso").value) params.set("acesso_aberto", "sim");
+  mapear("filtro-ano-min", "ano_min");
+  mapear("filtro-ano-max", "ano_max");
+  mapear("filtro-ordenacao", "ordenacao");
   if ($("filtro-busca-biblioteca").value.trim()) params.set("busca", $("filtro-busca-biblioteca").value.trim());
   try {
     const artigos = await api("/api/artigos?" + params.toString());
     const div = $("lista-biblioteca");
     div.innerHTML = artigos.length
       ? artigos.map(a => cartaoArtigo(a)).join("")
-      : '<p class="vazio">Biblioteca vazia. Busque artigos ou importe PDFs.</p>';
-  } catch (e) { toast("Erro: " + e.message); }
+      : '<p class="vazio">Empty library. Search for articles or import PDFs.</p>';
+  } catch (e) { toast("Error: " + e.message); }
 }
 
 async function baixarPdf(id) {
-  try { await api(`/api/artigos/${id}/download`, { method: "POST" }); toast("Download iniciado"); listarBiblioteca(); }
-  catch (e) { toast("Erro: " + e.message); }
+  try { await api(`/api/artigos/${id}/download`, { method: "POST" }); toast("Download started"); listarBiblioteca(); }
+  catch (e) { toast("Error: " + e.message); }
 }
 
 async function resumir(id) {
-  try { await api(`/api/artigos/${id}/resumir`, { method: "POST" }); toast("Resumo iniciado"); listarBiblioteca(); }
-  catch (e) { toast("Erro: " + e.message); }
+  try { await api(`/api/artigos/${id}/resumir`, { method: "POST" }); toast("Summary started"); listarBiblioteca(); }
+  catch (e) { toast("Error: " + e.message); }
 }
 
 function abrirPdf(id) { window.open(`/api/artigos/${id}/pdf`, "_blank"); }
 
+function abrirLink(el) {
+  const href = el.dataset.href;
+  if (href) window.open(href, "_blank");
+}
+
 async function excluir(id) {
-  if (!confirm("Excluir este artigo e o PDF do seu computador?")) return;
-  try { await api(`/api/artigos/${id}`, { method: "DELETE" }); listarBiblioteca(); toast("Artigo excluído"); }
-  catch (e) { toast("Erro: " + e.message); }
+  if (!confirm("Delete this article and its PDF from your computer?")) return;
+  try { await api(`/api/artigos/${id}`, { method: "DELETE" }); listarBiblioteca(); toast("Article deleted"); }
+  catch (e) { toast("Error: " + e.message); }
 }
 
 async function abrirDetalhe(id) {
   try {
     const a = await api(`/api/artigos/${id}`);
-    let resumoHtml = `<p class="nao-id">Nenhum resumo ainda. Clique em "Resumir" no cartão.</p>`;
-    if (a.resumo_status === "processando") resumoHtml = `<p class="nao-id">Resumo em andamento...</p>`;
-    else if (a.resumo_status === "falha") resumoHtml = `<p class="nao-id">Falha: ${esc(a.resumo_mensagem || "erro desconhecido")}</p>`;
+    let resumoHtml = `<p class="nao-id">No summary yet. Click "Summarize" on the card.</p>`;
+    if (a.resumo_status === "processando") resumoHtml = `<p class="nao-id">Summary in progress...</p>`;
+    else if (a.resumo_status === "falha") resumoHtml = `<p class="nao-id">Failed: ${esc(a.resumo_mensagem || "unknown error")}</p>`;
     else if (a.resumo_llm) {
       const campos = JSON.parse(a.resumo_llm);
-      const rotulos = { objetivos: "Objetivos", metodologia: "Metodologia", resultados: "Resultados", contribuicoes: "Contribuições", limitacoes: "Limitações" };
-      resumoHtml = Object.keys(rotulos).map(k =>
-        `<div class="secao-resumo"><h4>${rotulos[k]}</h4><p class="${campos[k] === "Não identificado no texto" ? "nao-id" : ""}">${esc(campos[k])}</p></div>`
-      ).join("");
+      const mapaPt = { objetivos: "objectives", metodologia: "methodology", resultados: "results", contribuicoes: "contributions", limitacoes: "limitations" };
+      resumoHtml = CAMPOS_RESUMO.map(([en, rot]) => {
+        const chavePt = Object.keys(mapaPt).find(k => mapaPt[k] === en) || en;
+        const valor = campos[en] ?? campos[chavePt] ?? "";
+        return `<div class="secao-resumo"><h4>${rot}</h4><p class="${valor === "Not identified in the text" || valor === "Não identificado no texto" ? "nao-id" : ""}">${esc(valor)}</p></div>`;
+      }).join("");
     }
     $("conteudo-detalhe").innerHTML = `
       <h3>${esc(a.titulo)}</h3>
-      <div class="meta-linha">${autoresHtml(a.autores)} · ${a.ano || "—"} · ${esc(ROTULO_TIPO[a.tipo_origem] || a.tipo_origem || "")} · fonte: ${esc(a.fonte)}</div>
+      <div class="meta-linha">${autoresHtml(a.autores)} · ${a.ano || "—"} · ${esc(ROTULO_TIPO[a.tipo_origem] || a.tipo_origem || "")} · source: ${esc(ROTULO_FONTE[a.fonte] || a.fonte)}${a.acesso_aberto ? " · Open access" : ""}</div>
       ${a.classificacao ? `<div class="meta-linha">🧭 ${esc(a.classificacao)}</div>` : ""}
       ${a.doi ? `<div class="meta-linha">DOI: ${esc(a.doi)}</div>` : ""}
-      ${a.caminho_pdf ? `<a href="/api/artigos/${a.id}/pdf" target="_blank" class="botao-mini">📄 Abrir PDF</a>` : ""}
-      <a href="${esc(a.url_pagina || "#")}" target="_blank" class="botao-mini">🔗 Página do artigo</a>
-      <div class="secao-resumo"><h4>Resumo (abstract)</h4><p>${esc(a.resumo || "Não disponível")}</p></div>
-      <div class="secao-resumo"><h4>Resumo estruturado</h4>${resumoHtml}</div>
-      <div class="secao-resumo"><h4>Organização</h4>
-        <p>Classificação: <input id="det-classif" value="${esc(a.classificacao || "")}" style="width:220px"></p>
+      ${a.caminho_pdf ? `<a href="/api/artigos/${a.id}/pdf" target="_blank" class="botao-mini">📄 Open PDF</a>` : ""}
+      <a href="${esc(a.url_pagina || "#")}" target="_blank" class="botao-mini">🔗 Article page</a>
+      <div class="secao-resumo"><h4>Abstract</h4><p>${esc(a.resumo || "Not available")}</p></div>
+      <div class="secao-resumo"><h4>Structured summary</h4>${resumoHtml}</div>
+      <div class="secao-resumo"><h4>Organization</h4>
+        <p>Classification: <input id="det-classif" value="${esc(a.classificacao || "")}" style="width:220px"></p>
         <p>${gerenciarCategoria(a)}</p>
-        <button class="botao-mini" onclick="salvarDetalhe(${a.id})">Salvar organização</button>
+        <button class="botao-mini" onclick="salvarDetalhe(${a.id})">Save organization</button>
       </div>`;
     $("modal-detalhe").hidden = false;
-  } catch (e) { toast("Erro: " + e.message); }
+  } catch (e) { toast("Error: " + e.message); }
 }
 
 function gerenciarCategoria(a) {
-  return `Categoria: <select id="det-categoria">
-      <option value="">(sem categoria)</option>
+  return `Category: <select id="det-categoria">
+      <option value="">(no category)</option>
       ${categorias.map(c => `<option value="${c.id}" ${c.id === a.categoria_id ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
     </select>
-    <input id="det-nova-categoria" placeholder="ou criar nova..." style="width:180px">`;
+    <input id="det-nova-categoria" placeholder="or create new..." style="width:180px">`;
 }
 
 async function salvarDetalhe(id) {
@@ -235,8 +256,8 @@ async function salvarDetalhe(id) {
     await carregarCategorias();
     $("modal-detalhe").hidden = true;
     listarBiblioteca();
-    toast("Organização salva");
-  } catch (e) { toast("Erro: " + e.message); }
+    toast("Organization saved");
+  } catch (e) { toast("Error: " + e.message); }
 }
 
 const zona = $("zona-drop");
@@ -257,7 +278,7 @@ function escolherArquivo(f) {
 
 $("botao-importar").addEventListener("click", async () => {
   const f = $("arquivo-import").files[0];
-  if (!f) { toast("Escolha um PDF primeiro"); return; }
+  if (!f) { toast("Choose a PDF first"); return; }
   const form = new FormData();
   form.append("arquivo", f);
   form.append("titulo", $("imp-titulo").value.trim());
@@ -265,14 +286,14 @@ $("botao-importar").addEventListener("click", async () => {
   form.append("ano", $("imp-ano").value);
   form.append("classificacao", $("imp-classificacao").value.trim());
   form.append("categoria", $("imp-categoria").value.trim());
-  $("status-importar").textContent = "Importando...";
+  $("status-importar").textContent = "Importing...";
   try {
     await fetch("/api/importar", { method: "POST", body: form });
-    $("status-importar").textContent = "Importado ✓";
+    $("status-importar").textContent = "Imported ✓";
     ["imp-titulo", "imp-autores", "imp-ano", "imp-classificacao", "imp-categoria"].forEach(id => $(id).value = "");
     $("nome-arquivo").textContent = "";
     $("arquivo-import").value = "";
-  } catch (e) { $("status-importar").textContent = "Erro: " + e.message; }
+  } catch (e) { $("status-importar").textContent = "Error: " + e.message; }
 });
 
 async function carregarConfig() {
@@ -286,12 +307,12 @@ async function carregarConfig() {
     $("cfg-abacus-model").value = c.abacus_model;
     const st = await api("/api/status-ferramentas");
     const ollama = st.ollama_ok
-      ? `<span class="ok">✓ Ollama ativo (${st.modelos_ollama.length} modelo(s) local(is))${st.modelo_padrao_baixado ? "" : " — modelo padrão ainda não baixado (será baixado no primeiro resumo)"}</span>`
-      : `<span class="erro">✗ Ollama não está rodando. Inicie com "ollama serve" ou abra o aplicativo Ollama.</span>`;
+      ? `<span class="ok">✓ Ollama running (${st.modelos_ollama.length} local model(s))${st.modelo_padrao_baixado ? "" : " — default model not downloaded yet (first summary will pull it)"}</span>`
+      : `<span class="erro">✗ Ollama is not running. Start it with "ollama serve" or open the Ollama app.</span>`;
     $("status-ferramentas").innerHTML = ollama +
-      `<span>Provedor atual: <b>${c.summary_provider === "abacus" ? "Abacus AI" : "Ollama local"}</b></span>` +
-      (c.api_key_definida ? `<span class="ok">✓ Chave Abacus configurada</span>` : `<span>Chave Abacus: não configurada (necessária para usar o provedor Abacus)</span>`);
-  } catch (e) { $("status-ferramentas").innerHTML = `<span class="erro">Erro ao carregar: ${esc(e.message)}</span>`; }
+      `<span>Current provider: <b>${c.summary_provider === "abacus" ? "Abacus AI" : "Local Ollama"}</b></span>` +
+      (c.api_key_definida ? `<span class="ok">✓ Abacus key configured</span>` : `<span>Abacus key: not configured (required for the Abacus provider)</span>`);
+  } catch (e) { $("status-ferramentas").innerHTML = `<span class="erro">Error loading: ${esc(e.message)}</span>`; }
 }
 
 $("salvar-config").addEventListener("click", async () => {
@@ -305,9 +326,9 @@ $("salvar-config").addEventListener("click", async () => {
   if ($("cfg-abacus-key").value) body.abacus_api_key = $("cfg-abacus-key").value.trim();
   try {
     await api("/api/configuracoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    $("status-config").textContent = "Salvo ✓";
+    $("status-config").textContent = "Saved ✓";
     setTimeout(carregarConfig, 800);
-  } catch (e) { $("status-config").textContent = "Erro: " + e.message; }
+  } catch (e) { $("status-config").textContent = "Error: " + e.message; }
 });
 
 setInterval(async () => {

@@ -34,7 +34,7 @@ def iniciar_download(artigo_id):
     artigo = db.get_artigo(artigo_id)
     if not artigo:
         return False
-    db.update_artigo(artigo_id, {"pdf_status": "baixando", "pdf_mensagem": "Procurando versão aberta (OpenAlex/arXiv/Unpaywall/Crossref)..."})
+    db.update_artigo(artigo_id, {"pdf_status": "baixando", "pdf_mensagem": "Looking for an open-access version (OpenAlex/arXiv/Unpaywall/Crossref)..."})
 
     def rodar():
         _registrar("download", artigo_id)
@@ -57,7 +57,7 @@ def iniciar_resumo(artigo_id):
     artigo = db.get_artigo(artigo_id)
     if not artigo:
         return False
-    db.update_artigo(artigo_id, {"resumo_status": "processando", "resumo_mensagem": "Extraindo texto e resumindo..."})
+    db.update_artigo(artigo_id, {"resumo_status": "processando", "resumo_mensagem": "Extracting text and summarizing..."})
 
     def rodar():
         _registrar("resumo", artigo_id)

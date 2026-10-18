@@ -34,7 +34,7 @@ def _startup():
 @app.get("/api/busca")
 def busca(q: str, tipo_origem: str = "", ano_min: str = "", ano_max: str = ""):
     if not q.strip():
-        raise HTTPException(400, "Informe ao menos uma palavra-chave")
+        raise HTTPException(400, "Enter at least one keyword")
     return sources.buscar_tudo(
         q.strip(),
         tipo_origem=tipo_origem or None,
@@ -51,10 +51,11 @@ def criar_artigo(dados: dict):
     }
     artigo = {k: v for k, v in dados.items() if k in campos_papeis}
     if not artigo.get("titulo"):
-        raise HTTPException(400, "Título é obrigatório")
+        raise HTTPException(400, "Title is required")
     if isinstance(artigo.get("autores"), list):
         artigo["autores"] = json.dumps(artigo["autores"], ensure_ascii=False)
     artigo["fonte"] = dados.get("fonte", "manual")
+    artigo["acesso_aberto"] = 1 if dados.get("acesso_aberto") else 0
     if artigo.get("urls_alternativas"):
         artigo["urls_alternativas"] = json.dumps(artigo["urls_alternativas"], ensure_ascii=False)
     else:
@@ -72,13 +73,18 @@ def criar_artigo(dados: dict):
 
 
 @app.get("/api/artigos")
-def listar_artigos(categoria_id: str = "", tipo_origem: str = "", pdf_status: str = "", tem_resumo: str = "", busca: str = ""):
+def listar_artigos(categoria_id: str = "", tipo_origem: str = "", pdf_status: str = "", tem_resumo: str = "", busca: str = "", fonte: str = "", acesso_aberto: str = "", ano_min: str = "", ano_max: str = "", ordenacao: str = ""):
     return db.list_artigos({
         "categoria_id": categoria_id or None,
         "tipo_origem": tipo_origem or None,
         "pdf_status": pdf_status or None,
         "tem_resumo": tem_resumo or None,
         "busca": busca or None,
+        "fonte": fonte or None,
+        "acesso_aberto": acesso_aberto or None,
+        "ano_min": ano_min or None,
+        "ano_max": ano_max or None,
+        "ordenacao": ordenacao or None,
     })
 
 
@@ -86,7 +92,7 @@ def listar_artigos(categoria_id: str = "", tipo_origem: str = "", pdf_status: st
 def detalhe_artigo(artigo_id: int):
     artigo = db.get_artigo(artigo_id)
     if not artigo:
-        raise HTTPException(404, "Artigo não encontrado")
+        raise HTTPException(404, "Article not found")
     return artigo
 
 
@@ -94,7 +100,7 @@ def detalhe_artigo(artigo_id: int):
 def atualizar_artigo(artigo_id: int, dados: dict):
     artigo = db.get_artigo(artigo_id)
     if not artigo:
-        raise HTTPException(404, "Artigo não encontrado")
+        raise HTTPException(404, "Article not found")
     campos = {}
     for chave in ("categoria_id", "classificacao", "tipo_origem", "notas", "titulo", "tipo"):
         if chave in dados and dados[chave] is not None:
@@ -108,7 +114,7 @@ def atualizar_artigo(artigo_id: int, dados: dict):
 def excluir_artigo(artigo_id: int):
     artigo = db.get_artigo(artigo_id)
     if not artigo:
-        raise HTTPException(404, "Artigo não encontrado")
+        raise HTTPException(404, "Article not found")
     if artigo.get("caminho_pdf") and os.path.exists(artigo["caminho_pdf"]):
         try:
             os.remove(artigo["caminho_pdf"])
@@ -122,10 +128,10 @@ def excluir_artigo(artigo_id: int):
 def baixar_pdf(artigo_id: int):
     artigo = db.get_artigo(artigo_id)
     if not artigo:
-        raise HTTPException(404, "Artigo não encontrado")
+        raise HTTPException(404, "Article not found")
     iniciado = jobs.iniciar_download(artigo_id)
     if not iniciado:
-        raise HTTPException(409, "Já existe uma tarefa em andamento para este artigo")
+        raise HTTPException(409, "A task is already running for this article")
     return {"ok": True}
 
 
@@ -133,10 +139,10 @@ def baixar_pdf(artigo_id: int):
 def resumir(artigo_id: int):
     artigo = db.get_artigo(artigo_id)
     if not artigo:
-        raise HTTPException(404, "Artigo não encontrado")
+        raise HTTPException(404, "Article not found")
     iniciado = jobs.iniciar_resumo(artigo_id)
     if not iniciado:
-        raise HTTPException(409, "Já existe uma tarefa em andamento para este artigo")
+        raise HTTPException(409, "A task is already running for this article")
     return {"ok": True}
 
 
@@ -144,7 +150,7 @@ def resumir(artigo_id: int):
 def abrir_pdf(artigo_id: int):
     artigo = db.get_artigo(artigo_id)
     if not artigo or not artigo.get("caminho_pdf") or not os.path.exists(artigo["caminho_pdf"]):
-        raise HTTPException(404, "PDF não disponível")
+        raise HTTPException(404, "PDF not available")
     return FileResponse(artigo["caminho_pdf"], media_type="application/pdf", filename=os.path.basename(artigo["caminho_pdf"]))
 
 
@@ -152,7 +158,7 @@ def abrir_pdf(artigo_id: int):
 def importar(arquivo: UploadFile = File(...), titulo: str = Form(""), autores: str = Form(""), ano: str = Form(""), classificacao: str = Form(""), categoria: str = Form("")):
     nome = arquivo.filename or "importado.pdf"
     if not nome.lower().endswith(".pdf"):
-        raise HTTPException(400, "O arquivo precisa ser um PDF")
+        raise HTTPException(400, "The file must be a PDF")
     artigo_id = uuid.uuid4().int % 10**9
     destino = os.path.join(PDF_DIR, f"{artigo_id}_{os.path.basename(nome).replace(' ', '_')}")
     with open(destino, "wb") as f:
@@ -160,7 +166,7 @@ def importar(arquivo: UploadFile = File(...), titulo: str = Form(""), autores: s
     with open(destino, "rb") as f:
         if f.read(5) != b"%PDF-":
             os.remove(destino)
-            raise HTTPException(400, "Arquivo inválido: não parece ser um PDF")
+            raise HTTPException(400, "Invalid file: does not look like a PDF")
     from pypdf import PdfReader
 
     leitor = PdfReader(destino)
@@ -180,7 +186,7 @@ def importar(arquivo: UploadFile = File(...), titulo: str = Form(""), autores: s
         "classificacao": classificacao or None,
         "caminho_pdf": destino,
         "pdf_status": "baixado",
-        "pdf_mensagem": "importado manualmente",
+        "pdf_mensagem": "imported manually",
     }
     if categoria.strip():
         campos["categoria_id"] = db.add_categoria(categoria.strip())

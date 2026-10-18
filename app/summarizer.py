@@ -7,35 +7,35 @@ from pypdf import PdfReader
 
 from .config import load_settings
 
-CAMPOS = ["objetivos", "metodologia", "resultados", "contribuicoes", "limitacoes"]
+CAMPOS = ["objectives", "methodology", "results", "contributions", "limitations"]
 
-PROMPT = """Você é um assistente especializado em leitura crítica de artigos científicos.
-Leia o texto do artigo abaixo e extraia APENAS as informações solicitadas, respondendo em português.
+PROMPT = """You are an assistant specialized in critical reading of scientific articles.
+Read the article text below and extract ONLY the requested information, answering in English.
 
-Responda com JSON válido contendo exatamente estas chaves:
+Respond with valid JSON containing exactly these keys:
 {{
-  "objetivos": "...",
-  "metodologia": "...",
-  "resultados": "...",
-  "contribuicoes": "...",
-  "limitacoes": "..."
+  "objectives": "...",
+  "methodology": "...",
+  "results": "...",
+  "contributions": "...",
+  "limitations": "..."
 }}
 
-Regras:
-- Descreva APENAS o que está de fato no texto. Se uma seção não aparecer, use "Não identificado no texto".
-- objetivos: o problema endereçado e as metas do trabalho.
-- metodologia: desenho do estudo, materiais/métodos, dados, técnicas e métricas usadas.
-- resultados: principais achados, com números-chave quando presentes.
-- contribuicoes: novidades, implicações e o que o trabalho agrega à área.
-- limitacoes: restrições declaradas ou evidentes; se não houver, use "Não identificado no texto".
-- Cada campo com 2 a 8 frases objetivas. Não invente nem generalize.
-- Responda somente o JSON, sem texto extra, sem usar markdown.
+Rules:
+- Describe ONLY what is actually in the text. If a section is not present, use "Not identified in the text".
+- objectives: the problem addressed and the goals of the work.
+- methodology: study design, materials/methods, data, techniques and metrics used.
+- results: main findings, with key numbers when present.
+- contributions: novelty, implications and what the work adds to the field.
+- limitations: stated or evident restrictions; if none, use "Not identified in the text".
+- Each field with 2 to 8 objective sentences. Do not invent or generalize.
+- Respond with only the JSON, no extra text, no markdown.
 
-TÍTULO: {titulo}
+TITLE: {titulo}
 
-RESUMO (abstract): {abstract}
+ABSTRACT: {abstract}
 
-TEXTO DO ARTIGO:
+ARTICLE TEXT:
 {texto}"""
 
 
@@ -102,15 +102,15 @@ def montar_trecho_focado(texto, limite=14000):
         trechos = [texto[:4000], texto[meio:meio + 4000], texto[-6000:]]
     montado = "\n\n[...]\n\n".join(trechos)
     if corte_ref is not None and len(montado) < limite:
-        montado = montado[:corte_ref] + "\n\n[seção de referências omitida]"
+        montado = montado[:corte_ref] + "\n\n[references section omitted]"
     return montado[:limite]
 
 
 def montar_prompt(artigo, texto):
     return PROMPT.format(
-        titulo=(artigo.get("titulo") or "Sem título")[:500],
-        abstract=(artigo.get("resumo") or "Não disponível")[:3000],
-        texto=texto or "(sem texto extraível)",
+        titulo=(artigo.get("titulo") or "Untitled")[:500],
+        abstract=(artigo.get("resumo") or "Not available")[:3000],
+        texto=texto or "(no extractable text)",
     )
 
 
@@ -131,7 +131,7 @@ def chamar_abacus(mensagens, settings):
     url = settings.get("abacus_base_url", "https://routellm.abacus.ai/v1").rstrip("/") + "/chat/completions"
     chave = settings.get("abacus_api_key", "")
     if not chave:
-        raise ValueError("Chave da API da Abacus não configurada. Adicione em Configurações.")
+        raise ValueError("Abacus API key not configured. Add it in Settings.")
     body = {
         "model": settings.get("abacus_model", "route-llm"),
         "messages": mensagens,
@@ -145,7 +145,7 @@ def chamar_abacus(mensagens, settings):
 def parse_resposta(texto):
     m = re.search(r"\{.*\}", texto, re.DOTALL)
     if not m:
-        raise ValueError("Resposta do modelo sem JSON")
+        raise ValueError("Model response without JSON")
     dados = json.loads(m.group(0))
     dados_norm = {}
     for chave, valor in dados.items():
@@ -153,9 +153,9 @@ def parse_resposta(texto):
     limpos = {}
     for campo in CAMPOS:
         valor = str(dados_norm.get(campo, "") or "").strip()
-        if valor.lower().startswith("não identif") or valor.lower().startswith("nao identif"):
-            valor = "Não identificado no texto"
-        limpos[campo] = valor or "Não identificado no texto"
+        if re.match(r"^(n[aã]o\s+identif|not\s+identif|not\s+found|n/a|none)$", valor, re.IGNORECASE):
+            valor = "Not identified in the text"
+        limpos[campo] = valor or "Not identified in the text"
     return limpos
 
 
@@ -201,20 +201,20 @@ def resumir_artigo(artigo, progresso=None):
     provider = settings.get("summary_provider", "ollama")
     caminho = artigo.get("caminho_pdf")
     if not caminho:
-        db.update_artigo(artigo["id"], {"resumo_status": "falha", "resumo_mensagem": "Sem PDF baixado. Baixe ou importe o PDF antes de resumir."})
+        db.update_artigo(artigo["id"], {"resumo_status": "falha", "resumo_mensagem": "No PDF downloaded. Download or import the PDF before summarizing."})
         return
     if provider == "ollama":
         if not existe_modelo_exato(settings.get("ollama_model", "qwen2.5:3b")):
-            db.update_artigo(artigo["id"], {"resumo_status": "processando", "resumo_mensagem": f"Baixando modelo {settings['ollama_model']} (só na primeira vez)..."})
+            db.update_artigo(artigo["id"], {"resumo_status": "processando", "resumo_mensagem": f"Downloading model {settings['ollama_model']} (first time only)..."})
             if progresso:
                 progresso(f"baixando_modelo:{settings['ollama_model']}")
             ok, msg = baixar_modelo(settings["ollama_model"])
             if not ok:
-                db.update_artigo(artigo["id"], {"resumo_status": "falha", "resumo_mensagem": f"Falha ao baixar modelo: {msg}"})
+                db.update_artigo(artigo["id"], {"resumo_status": "falha", "resumo_mensagem": f"Failed to download model: {msg}"})
                 return
     texto = extrair_texto_pdf(caminho)
     if len(texto.strip()) < 250:
-        db.update_artigo(artigo["id"], {"resumo_status": "falha", "resumo_mensagem": "O PDF parece escaneado ou sem camada de texto. Use um PDF com texto selecionável."})
+        db.update_artigo(artigo["id"], {"resumo_status": "falha", "resumo_mensagem": "The PDF appears to be scanned or has no text layer. Use a PDF with selectable text."})
         return
     try:
         prompt = montar_prompt(artigo, texto)
@@ -224,7 +224,7 @@ def resumir_artigo(artigo, progresso=None):
         elif provider == "abacus":
             resposta = chamar_abacus(mensagens, settings)
         else:
-            raise ValueError(f"Provedor desconhecido: {provider}")
+            raise ValueError(f"Unknown provider: {provider}")
         campos = parse_resposta(resposta)
         db.update_artigo(artigo["id"], {
             "resumo_llm": json.dumps(campos, ensure_ascii=False),

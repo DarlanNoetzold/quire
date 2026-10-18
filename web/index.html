@@ -1,40 +1,40 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Leitor de Artigos</title>
+<title>Paper Reader</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <div class="logo">📚 Leitor de Artigos</div>
+  <div class="logo">📚 Paper Reader</div>
   <nav>
-    <button class="aba ativa" data-aba="buscar">Buscar</button>
-    <button class="aba" data-aba="biblioteca">Biblioteca</button>
-    <button class="aba" data-aba="importar">Importar</button>
-    <button class="aba" data-aba="config">Configurações</button>
+    <button class="aba ativa" data-aba="buscar">Search</button>
+    <button class="aba" data-aba="biblioteca">Library</button>
+    <button class="aba" data-aba="importar">Import</button>
+    <button class="aba" data-aba="config">Settings</button>
   </nav>
 </header>
 
 <main>
   <section id="aba-buscar" class="painel ativo">
     <div class="bloco-busca">
-      <input id="campo-busca" type="text" placeholder="Palavras-chave, título ou autor (ex.: machine learning saúde)..." autocomplete="off">
-      <button id="botao-buscar" class="primario">Buscar</button>
+      <input id="campo-busca" type="text" placeholder="Keywords, title or author (e.g. machine learning health)..." autocomplete="off">
+      <button id="botao-buscar" class="primario">Search</button>
     </div>
     <div class="filtros">
       <select id="filtro-tipo-busca">
-        <option value="">Qualquer tipo de origem</option>
-        <option value="artigo_periodico">Artigo de periódico</option>
+        <option value="">Any source type</option>
+        <option value="artigo_periodico">Journal article</option>
         <option value="preprint">Preprint</option>
-        <option value="revisao">Revisão</option>
-        <option value="capitulo_livro">Capítulo de livro</option>
-        <option value="anais_congresso">Anais de congresso</option>
-        <option value="tese_dissertacao">Tese/Dissertação</option>
+        <option value="revisao">Review</option>
+        <option value="capitulo_livro">Book chapter</option>
+        <option value="anais_congresso">Conference proceedings</option>
+        <option value="tese_dissertacao">Thesis/Dissertation</option>
       </select>
-      <input id="ano-min" type="number" placeholder="Ano mín." min="1900" max="2100" style="width:100px">
-      <input id="ano-max" type="number" placeholder="Ano máx." min="1900" max="2100" style="width:100px">
+      <input id="ano-min" type="number" placeholder="Min year" min="1900" max="2100" style="width:100px">
+      <input id="ano-max" type="number" placeholder="Max year" min="1900" max="2100" style="width:100px">
       <span id="status-busca" class="status-texto"></span>
     </div>
     <div id="resultados-busca" class="lista"></div>
@@ -44,84 +44,111 @@
     <div class="filtros">
       <select id="filtro-categoria"></select>
       <select id="filtro-tipo">
-        <option value="">Qualquer tipo de origem</option>
-        <option value="artigo_periodico">Artigo de periódico</option>
+        <option value="">Any source type</option>
+        <option value="artigo_periodico">Journal article</option>
         <option value="preprint">Preprint</option>
-        <option value="revisao">Revisão</option>
-        <option value="capitulo_livro">Capítulo de livro</option>
-        <option value="anais_congresso">Anais de congresso</option>
-        <option value="tese_dissertacao">Tese/Dissertação</option>
+        <option value="revisao">Review</option>
+        <option value="capitulo_livro">Book chapter</option>
+        <option value="anais_congresso">Conference proceedings</option>
+        <option value="tese_dissertacao">Thesis/Dissertation</option>
       </select>
       <select id="filtro-status">
-        <option value="">Qualquer status de PDF</option>
-        <option value="nao_baixado">Sem download</option>
-        <option value="baixado">PDF baixado</option>
-        <option value="baixando">Baixando...</option>
-        <option value="falha">Falha no download</option>
-        <option value="nao_disponivel">Sem versão aberta</option>
+        <option value="">Any PDF status</option>
+        <option value="nao_baixado">Not downloaded</option>
+        <option value="baixado">PDF downloaded</option>
+        <option value="baixando">Downloading...</option>
+        <option value="falha">Download failed</option>
+        <option value="nao_disponivel">No open version</option>
       </select>
       <select id="filtro-resumo">
-        <option value="">Qualquer status de resumo</option>
-        <option value="sim">Tem resumo</option>
-        <option value="nao">Sem resumo</option>
+        <option value="">Any summary status</option>
+        <option value="sim">Has summary</option>
+        <option value="nao">No summary</option>
       </select>
-      <input id="filtro-busca-biblioteca" type="text" placeholder="Filtrar por título/classificação...">
-      <button id="limpar-filtros" class="secundario">Limpar</button>
+      <select id="filtro-fonte">
+        <option value="">Any source</option>
+        <option value="openalex">OpenAlex</option>
+        <option value="arxiv">arXiv</option>
+        <option value="semanticscholar">Semantic Scholar</option>
+        <option value="pubmed">PubMed</option>
+        <option value="crossref">Crossref</option>
+        <option value="doaj">DOAJ</option>
+        <option value="europepmc">Europe PMC</option>
+        <option value="manual">Manual import</option>
+      </select>
+      <select id="filtro-acesso">
+        <option value="">Open access (any)</option>
+        <option value="sim">Open access only</option>
+      </select>
+      <input id="filtro-ano-min" type="number" placeholder="From year" min="1900" max="2100" style="width:100px">
+      <input id="filtro-ano-max" type="number" placeholder="To year" min="1900" max="2100" style="width:100px">
+      <input id="filtro-busca-biblioteca" type="text" placeholder="Filter by title/classification...">
+      <select id="filtro-ordenacao">
+        <option value="recente">Most recently added</option>
+        <option value="antigo">Oldest added</option>
+        <option value="titulo_az">Title A–Z</option>
+        <option value="titulo_za">Title Z–A</option>
+        <option value="ano_novo">Newest year</option>
+        <option value="ano_velho">Oldest year</option>
+        <option value="classificacao">Classification A–Z</option>
+        <option value="fonte">Source A–Z</option>
+      </select>
+      <button id="limpar-filtros" class="secundario">Clear</button>
     </div>
     <div id="lista-biblioteca" class="lista"></div>
   </section>
 
   <section id="aba-importar" class="painel">
-    <h2>Importar PDF manualmente</h2>
-    <p class="ajuda">Use quando não houver versão aberta automática (acesso por assinatura, SciELO, etc.). O PDF fica só no seu computador.</p>
+    <h2>Import PDF manually</h2>
+    <p class="ajuda">Use this when no open-access version is available automatically (institutional access, SciELO, etc.). The PDF stays only on your computer.</p>
     <div id="zona-drop" class="drop">
-      <p>Arraste o PDF aqui ou <span class="link">clique para escolher</span></p>
+      <p>Drag the PDF here or <span class="link">click to choose</span></p>
       <input type="file" id="arquivo-import" accept="application/pdf" hidden>
       <div id="nome-arquivo" class="arquivo-nome"></div>
     </div>
     <div class="form-grid">
-      <input id="imp-titulo" type="text" placeholder="Título (automático se vazio)">
-      <input id="imp-autores" type="text" placeholder="Autores (separe por ;)">
-      <input id="imp-ano" type="number" placeholder="Ano" min="1900" max="2100">
-      <input id="imp-classificacao" type="text" placeholder="Classificação (ex.: Ciência da Computação)">
-      <input id="imp-categoria" type="text" placeholder="Categoria da biblioteca (ex.: IA)">
+      <input id="imp-titulo" type="text" placeholder="Title (automatic if empty)">
+      <input id="imp-autores" type="text" placeholder="Authors (separate with ;)">
+      <input id="imp-ano" type="number" placeholder="Year" min="1900" max="2100">
+      <input id="imp-classificacao" type="text" placeholder="Classification (e.g. Computer Science)">
+      <input id="imp-categoria" type="text" placeholder="Library category (e.g. AI)">
     </div>
-    <button id="botao-importar" class="primario">Importar PDF</button>
+    <button id="botao-importar" class="primario">Import PDF</button>
     <span id="status-importar" class="status-texto"></span>
   </section>
 
   <section id="aba-config" class="painel">
-    <h2>Configurações</h2>
+    <h2>Settings</h2>
     <div id="status-ferramentas" class="caixa-status"></div>
     <div class="form-grid">
-      <label>Provedor de resumo
+      <label>Summary provider
         <select id="cfg-provider">
-          <option value="ollama">Ollama local (grátis, PDFs não saem do seu PC)</option>
-          <option value="abacus">Abacus AI (online, usa créditos/chave própria)</option>
+          <option value="ollama">Local Ollama (free, PDFs never leave your PC)</option>
+          <option value="abacus">Abacus AI (online, uses credits/own key)</option>
         </select>
       </label>
-      <label>Modelo Ollama
+      <label>Ollama model
         <select id="cfg-ollama-model">
-          <option value="qwen2.5:3b">qwen2.5:3b (leve, ~2 GB)</option>
-          <option value="llama3.2:3b">llama3.2:3b (leve, ~2 GB)</option>
-          <option value="qwen2.5:7b">qwen2.5:7b (bom, ~4,7 GB)</option>
-          <option value="llama3.1:8b">llama3.1:8b (bom, ~4,7 GB)</option>
+          <option value="qwen2.5:3b">qwen2.5:3b (light, ~2 GB)</option>
+          <option value="llama3.2:3b">llama3.2:3b (light, ~2 GB)</option>
+          <option value="qwen2.5:7b">qwen2.5:7b (good, ~4.7 GB)</option>
+          <option value="llama3.1:8b">llama3.1:8b (good, ~4.7 GB)</option>
         </select>
       </label>
-      <label>URL do Ollama
+      <label>Ollama URL
         <input id="cfg-ollama-url" type="text" value="http://127.0.0.1:11434">
       </label>
-      <label>Chave da API Abacus (para provedor Abacus)
-        <input id="cfg-abacus-key" type="password" placeholder="Cole sua chave (fica só no seu PC)">
+      <label>Abacus API key (for the Abacus provider)
+        <input id="cfg-abacus-key" type="password" placeholder="Paste your key (stays only on your PC)">
       </label>
-      <label>URL da API Abacus
+      <label>Abacus API URL
         <input id="cfg-abacus-url" type="text" value="https://routellm.abacus.ai/v1">
       </label>
-      <label>Modelo Abacus
+      <label>Abacus model
         <input id="cfg-abacus-model" type="text" value="route-llm">
       </label>
     </div>
-    <button id="salvar-config" class="primario">Salvar configurações</button>
+    <button id="salvar-config" class="primario">Save settings</button>
     <span id="status-config" class="status-texto"></span>
   </section>
 </main>

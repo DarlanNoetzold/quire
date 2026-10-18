@@ -55,7 +55,7 @@ def candidatos_url(artigo):
 def baixar_pdf(artigo):
     urls = candidatos_url(artigo)
     if not urls:
-        db.update_artigo(artigo["id"], {"pdf_status": "nao_disponivel", "pdf_mensagem": "Nenhuma versão aberta encontrada. Use a importação manual com o PDF que você já tem."})
+        db.update_artigo(artigo["id"], {"pdf_status": "nao_disponivel", "pdf_mensagem": "No open-access version found. Use manual import with the PDF you already have."})
         return {"ok": False, "motivo": "sem_url"}
     erros = []
     for url in urls:
@@ -70,7 +70,7 @@ def baixar_pdf(artigo):
         except Exception as e:
             erros.append(f"{url}: {type(e).__name__}")
     if not erros:
-        msg = "As fontes abertas não entregaram o PDF diretamente (página HTML, captcha ou bloqueio). Acesse pelo portal da editora/repositório e use a importação manual."
+        msg = "Open sources did not deliver the PDF directly (HTML page, captcha or block). Open the publisher/repository page and use manual import."
     else:
         msg = "; ".join(erros[:4])
     db.update_artigo(artigo["id"], {"pdf_status": "falha", "pdf_mensagem": msg[:500]})

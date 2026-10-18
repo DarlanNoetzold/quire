@@ -45,6 +45,7 @@ def init_db():
             url_pdf TEXT,
             url_pagina TEXT,
             urls_alternativas TEXT DEFAULT '[]',
+            acesso_aberto INTEGER DEFAULT 0,
             caminho_pdf TEXT,
             pdf_status TEXT DEFAULT 'nao_baixado',
             pdf_mensagem TEXT,
@@ -59,8 +60,15 @@ def init_db():
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_artigos_cat ON artigos(categoria_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_artigos_status ON artigos(pdf_status)")
+    _migrar(conn)
     conn.commit()
     conn.close()
+
+
+def _migrar(conn):
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(artigos)").fetchall()}
+    if "acesso_aberto" not in cols:
+        conn.execute("ALTER TABLE artigos ADD COLUMN acesso_aberto INTEGER DEFAULT 0")
 
 
 def add_categoria(nome, cor="#4f8cff"):
@@ -113,6 +121,18 @@ def get_artigo(artigo_id):
     return dict(row) if row else None
 
 
+ORDENACOES = {
+    "recente": "a.criado_em DESC",
+    "antigo": "a.criado_em ASC",
+    "titulo_az": "a.titulo COLLATE NOCASE ASC",
+    "titulo_za": "a.titulo COLLATE NOCASE DESC",
+    "ano_novo": "a.ano DESC, a.criado_em DESC",
+    "ano_velho": "a.ano ASC, a.criado_em DESC",
+    "classificacao": "a.classificacao COLLATE NOCASE ASC",
+    "fonte": "a.fonte COLLATE NOCASE ASC",
+}
+
+
 def list_artigos(filtros=None):
     filtros = filtros or {}
     sql = "SELECT a.*, c.nome AS categoria_nome, c.cor AS categoria_cor FROM artigos a LEFT JOIN categorias c ON a.categoria_id = c.id WHERE 1=1"
@@ -126,6 +146,17 @@ def list_artigos(filtros=None):
     if filtros.get("pdf_status"):
         sql += " AND a.pdf_status = ?"
         params.append(filtros["pdf_status"])
+    if filtros.get("fonte"):
+        sql += " AND a.fonte = ?"
+        params.append(filtros["fonte"])
+    if filtros.get("acesso_aberto"):
+        sql += " AND a.acesso_aberto = 1"
+    if filtros.get("ano_min"):
+        sql += " AND a.ano >= ?"
+        params.append(int(filtros["ano_min"]))
+    if filtros.get("ano_max"):
+        sql += " AND a.ano <= ?"
+        params.append(int(filtros["ano_max"]))
     if filtros.get("tem_resumo") == "sim":
         sql += " AND a.resumo_status = 'pronto'"
     elif filtros.get("tem_resumo") == "nao":
@@ -134,7 +165,7 @@ def list_artigos(filtros=None):
         sql += " AND (a.titulo LIKE ? OR a.classificacao LIKE ? OR a.autores LIKE ?)"
         termo = f"%{filtros['busca']}%"
         params += [termo, termo, termo]
-    sql += " ORDER BY a.criado_em DESC"
+    sql += " ORDER BY " + ORDENACOES.get(filtros.get("ordenacao"), ORDENACOES["recente"])
     conn = _conn()
     rows = conn.execute(sql, params).fetchall()
     conn.close()
