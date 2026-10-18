@@ -54,6 +54,10 @@ def init_db():
             resumo_mensagem TEXT,
             resumo_provider TEXT,
             notas TEXT,
+            read_status TEXT DEFAULT 'nao_lido',
+            favorito INTEGER DEFAULT 0,
+            idioma TEXT,
+            citacoes INTEGER DEFAULT 0,
             criado_em TEXT
         )
         """
@@ -69,6 +73,14 @@ def _migrar(conn):
     cols = {r[1] for r in conn.execute("PRAGMA table_info(artigos)").fetchall()}
     if "acesso_aberto" not in cols:
         conn.execute("ALTER TABLE artigos ADD COLUMN acesso_aberto INTEGER DEFAULT 0")
+    if "read_status" not in cols:
+        conn.execute("ALTER TABLE artigos ADD COLUMN read_status TEXT DEFAULT 'nao_lido'")
+    if "favorito" not in cols:
+        conn.execute("ALTER TABLE artigos ADD COLUMN favorito INTEGER DEFAULT 0")
+    if "idioma" not in cols:
+        conn.execute("ALTER TABLE artigos ADD COLUMN idioma TEXT")
+    if "citacoes" not in cols:
+        conn.execute("ALTER TABLE artigos ADD COLUMN citacoes INTEGER DEFAULT 0")
 
 
 def add_categoria(nome, cor="#4f8cff"):
@@ -130,6 +142,10 @@ ORDENACOES = {
     "ano_velho": "a.ano ASC, a.criado_em DESC",
     "classificacao": "a.classificacao COLLATE NOCASE ASC",
     "fonte": "a.fonte COLLATE NOCASE ASC",
+    "citacoes": "a.citacoes DESC, a.ano DESC",
+    "favoritos": "a.favorito DESC, a.criado_em DESC",
+    "idioma": "a.idioma COLLATE NOCASE ASC",
+    "autor": "a.autores COLLATE NOCASE ASC",
 }
 
 
@@ -161,6 +177,30 @@ def list_artigos(filtros=None):
         sql += " AND a.resumo_status = 'pronto'"
     elif filtros.get("tem_resumo") == "nao":
         sql += " AND a.resumo_status != 'pronto'"
+    if filtros.get("autor"):
+        sql += " AND a.autores LIKE ?"
+        params.append(f"%{filtros['autor']}%")
+    if filtros.get("read_status"):
+        sql += " AND a.read_status = ?"
+        params.append(filtros["read_status"])
+    if filtros.get("favorito"):
+        sql += " AND a.favorito = 1"
+    if filtros.get("idioma"):
+        sql += " AND a.idioma = ?"
+        params.append(filtros["idioma"])
+    if filtros.get("citacoes_min"):
+        sql += " AND a.citacoes >= ?"
+        params.append(int(filtros["citacoes_min"]))
+    if filtros.get("adicionado") in ("hoje", "7", "30", "90"):
+        from datetime import datetime, timedelta, timezone
+
+        agora = datetime.now(timezone.utc)
+        if filtros["adicionado"] == "hoje":
+            limite = agora.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            limite = agora - timedelta(days=int(filtros["adicionado"]))
+        sql += " AND a.criado_em >= ?"
+        params.append(limite.isoformat(timespec="seconds"))
     if filtros.get("busca"):
         sql += " AND (a.titulo LIKE ? OR a.classificacao LIKE ? OR a.autores LIKE ?)"
         termo = f"%{filtros['busca']}%"

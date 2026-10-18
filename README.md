@@ -4,7 +4,7 @@ Local app that unifies your scientific paper reading workflow: **search, downloa
 
 ## Features
 
-- **Unified search** by keywords with filters for source type (journal article, preprint, review, book chapter...) and year range, across **7 sources**:
+- **Unified search** by keywords with filters for source type (journal article, preprint, review, book chapter...) and year range, across **11 sources**:
   - [OpenAlex](https://openalex.org) — global catalog (journals, repositories, automatic field classification)
   - [arXiv](https://arxiv.org) — preprints
   - [PubMed](https://pubmed.ncbi.nlm.nih.gov) — biomedical literature (MeSH classification)
@@ -12,9 +12,13 @@ Local app that unifies your scientific paper reading workflow: **search, downloa
   - [DOAJ](https://doaj.org) — open-access journals
   - [Europe PMC](https://europepmc.org) — life science literature, including preprints
   - [Semantic Scholar](https://www.semanticscholar.org) — when its rate limit allows (free tier without key)
+  - [dblp](https://dblp.org) — computer science (journals and conferences)
+  - [HAL](https://hal.science) — French/international repository with direct PDFs
+  - [Zenodo](https://zenodo.org) — open publications with direct PDFs
+  - [OpenAIRE](https://www.openaire.eu) — European funded research
 - **Automatic PDF download from open sources**: OpenAlex → [Unpaywall](https://unpaywall.org) → Crossref, in order. Articles without an automatic open version can be **imported manually** (drag-and-drop).
 - **Structured summary** that extracts only what you ask for: **Objectives, Methodology, Results, Contributions and Limitations** (not a generic summary).
-- **Library organized by classification**: category suggested automatically (OpenAlex concepts) or set by you, filtered by category, source type, source, PDF status, summary status, open access and year range, with **8 sort orders** (date added, title, year, classification, source).
+- **Library organized by classification**: category suggested automatically (OpenAlex concepts) or set by you, filtered by category, source type, source, PDF status, summary status, open access, reading status (not read/reading/read), favorites, language, minimum citations, author, year range and date added, with **11 sort orders** (date added, title, year, classification, source, citations, favorites, author).
 
 ## Requirements
 

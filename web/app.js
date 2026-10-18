@@ -23,6 +23,8 @@ const CAMPOS_RESUMO = [
 const $ = (id) => document.getElementById(id);
 let categorias = [];
 
+const ROTULO_LEITURA = { nao_lido: "Not read", lendo: "Reading", lido: "Read" };
+
 async function api(url, opcoes = {}) {
   const r = await fetch(url, opcoes);
   if (!r.ok) {
@@ -78,6 +80,12 @@ function cartaoArtigo(a, emBusca = false) {
     <button class="botao-mini" onclick="resumir(${a.id})">✨ Summarize</button>
     ${a.pdf_status === "baixado" ? `<button class="botao-mini" onclick="abrirPdf(${a.id})">📄 Open PDF</button>` : ""}
     <button class="botao-mini" onclick="abrirDetalhe(${a.id})">Details</button>
+    <button class="botao-mini" onclick="toggleFavorito(${a.id})">${a.favorito ? "★ Unfavorite" : "☆ Favorite"}</button>
+    <select class="botao-mini" onchange="mudarLeitura(${a.id}, this.value)">
+      <option value="nao_lido" ${a.read_status === "nao_lido" ? "selected" : ""}>Not read</option>
+      <option value="lendo" ${a.read_status === "lendo" ? "selected" : ""}>Reading</option>
+      <option value="lido" ${a.read_status === "lido" ? "selected" : ""}>Read</option>
+    </select>
     <button class="botao-mini perigo" onclick="excluir(${a.id})">🗑</button>`;
   const statusPdf = a.pdf_status === "baixando" ? selo("andando", ROTULO_PDF[a.pdf_status]) :
     (a.pdf_status === "baixado" ? selo("ok", ROTULO_PDF[a.pdf_status]) :
@@ -86,8 +94,12 @@ function cartaoArtigo(a, emBusca = false) {
     (a.resumo_status === "processando" ? selo("andando", "Summarizing…") :
      (a.resumo_status === "falha" ? selo("erro", "Summary failed") : selo("vazio", "No summary")));
   const oa = a.acesso_aberto ? selo("ok", "Open access") : "";
+  const fav = a.favorito ? `<span class="selo ok">★ Favorite</span>` : "";
+  const leitura = selo("vazio", ROTULO_LEITURA[a.read_status] || "Not read");
+  const cit = (!emBusca && a.citacoes) ? selo("fonte", `📊 ${a.citacoes} cit.`) : "";
+  const idioma = (!emBusca && a.idioma) ? selo("fonte", a.idioma) : "";
   return `<article class="cartao">
-    <div class="meta">${cat}${selo("fonte", ROTULO_FONTE[a.fonte] || a.fonte)}${selo("ano", a.ano || "—")}${selo("tipo", ROTULO_TIPO[a.tipo_origem] || a.tipo_origem || "—")}${oa}</div>
+    <div class="meta">${cat}${selo("fonte", ROTULO_FONTE[a.fonte] || a.fonte)}${selo("ano", a.ano || "—")}${selo("tipo", ROTULO_TIPO[a.tipo_origem] || a.tipo_origem || "—")}${oa}${fav}${leitura}${cit}${idioma}</div>
     <div class="titulo">${esc(a.titulo)}</div>
     <div class="autores">${autoresHtml(a.autores)}</div>
     ${a.classificacao ? `<div class="autores">🧭 ${esc(a.classificacao)}</div>` : ""}
@@ -110,14 +122,14 @@ document.querySelectorAll(".aba").forEach(b => {
 
 $("botao-buscar").addEventListener("click", buscar);
 $("campo-busca").addEventListener("keydown", e => { if (e.key === "Enter") buscar(); });
-["filtro-categoria", "filtro-tipo", "filtro-status", "filtro-resumo", "filtro-fonte", "filtro-acesso", "filtro-ordenacao"]
+["filtro-categoria", "filtro-tipo", "filtro-status", "filtro-resumo", "filtro-fonte", "filtro-acesso", "filtro-ordenacao", "filtro-leitura", "filtro-favoritos", "filtro-idioma", "filtro-adicionado"]
   .forEach(id => $(id).addEventListener("change", listarBiblioteca));
-["filtro-busca-biblioteca", "filtro-ano-min", "filtro-ano-max"]
+["filtro-busca-biblioteca", "filtro-ano-min", "filtro-ano-max", "filtro-citacoes", "filtro-autor"]
   .forEach(id => $(id).addEventListener("input", debounce(listarBiblioteca, 400)));
 $("limpar-filtros").addEventListener("click", () => {
-  ["filtro-categoria", "filtro-tipo", "filtro-status", "filtro-resumo", "filtro-fonte", "filtro-acesso", "filtro-ordenacao"]
+  ["filtro-categoria", "filtro-tipo", "filtro-status", "filtro-resumo", "filtro-fonte", "filtro-acesso", "filtro-ordenacao", "filtro-leitura", "filtro-favoritos", "filtro-idioma", "filtro-adicionado"]
     .forEach(id => { $(id).value = ""; });
-  ["filtro-busca-biblioteca", "filtro-ano-min", "filtro-ano-max"].forEach(id => { $(id).value = ""; });
+  ["filtro-busca-biblioteca", "filtro-ano-min", "filtro-ano-max", "filtro-citacoes", "filtro-autor"].forEach(id => { $(id).value = ""; });
   listarBiblioteca();
 });
 $("fechar-modal").addEventListener("click", () => $("modal-detalhe").hidden = true);
@@ -171,6 +183,12 @@ async function listarBiblioteca() {
   mapear("filtro-resumo", "tem_resumo");
   mapear("filtro-fonte", "fonte");
   if ($("filtro-acesso").value) params.set("acesso_aberto", "sim");
+  mapear("filtro-leitura", "read_status");
+  if ($("filtro-favoritos").value) params.set("favorito", "sim");
+  mapear("filtro-idioma", "idioma");
+  mapear("filtro-citacoes", "citacoes_min");
+  mapear("filtro-adicionado", "adicionado");
+  mapear("filtro-autor", "autor");
   mapear("filtro-ano-min", "ano_min");
   mapear("filtro-ano-max", "ano_max");
   mapear("filtro-ordenacao", "ordenacao");
@@ -195,6 +213,27 @@ async function resumir(id) {
 }
 
 function abrirPdf(id) { window.open(`/api/artigos/${id}/pdf`, "_blank"); }
+
+async function toggleFavorito(id) {
+  try {
+    const a = await api(`/api/artigos/${id}`);
+    await api(`/api/artigos/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favorito: a.favorito ? 0 : 1 }),
+    });
+    listarBiblioteca();
+  } catch (e) { toast("Error: " + e.message); }
+}
+
+async function mudarLeitura(id, valor) {
+  try {
+    await api(`/api/artigos/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ read_status: valor }),
+    });
+    listarBiblioteca();
+  } catch (e) { toast("Error: " + e.message); }
+}
 
 function abrirLink(el) {
   const href = el.dataset.href;
@@ -234,6 +273,11 @@ async function abrirDetalhe(id) {
       <div class="secao-resumo"><h4>Organization</h4>
         <p>Classification: <input id="det-classif" value="${esc(a.classificacao || "")}" style="width:220px"></p>
         <p>${gerenciarCategoria(a)}</p>
+        <p>Reading status: <select id="det-leitura">
+          <option value="nao_lido" ${a.read_status === "nao_lido" ? "selected" : ""}>Not read</option>
+          <option value="lendo" ${a.read_status === "lendo" ? "selected" : ""}>Reading</option>
+          <option value="lido" ${a.read_status === "lido" ? "selected" : ""}>Read</option>
+        </select> <label><input type="checkbox" id="det-favorito" ${a.favorito ? "checked" : ""}> ★ Favorite</label></p>
         <button class="botao-mini" onclick="salvarDetalhe(${a.id})">Save organization</button>
       </div>`;
     $("modal-detalhe").hidden = false;
@@ -251,6 +295,8 @@ function gerenciarCategoria(a) {
 async function salvarDetalhe(id) {
   const body = { classificacao: $("det-classif").value, categoria_id: $("det-categoria").value || null };
   if ($("det-nova-categoria").value.trim()) body.nova_categoria = $("det-nova-categoria").value.trim();
+  if ($("det-leitura")) body.read_status = $("det-leitura").value;
+  if ($("det-favorito")) body.favorito = $("det-favorito").checked ? 1 : 0;
   try {
     await api(`/api/artigos/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     await carregarCategorias();

@@ -80,6 +80,35 @@
         <option value="">Open access (any)</option>
         <option value="sim">Open access only</option>
       </select>
+      <select id="filtro-leitura">
+        <option value="">Any reading status</option>
+        <option value="nao_lido">Not read</option>
+        <option value="lendo">Reading</option>
+        <option value="lido">Read</option>
+      </select>
+      <select id="filtro-favoritos">
+        <option value="">All (favorites included)</option>
+        <option value="sim">Favorites only</option>
+      </select>
+      <select id="filtro-idioma">
+        <option value="">Any language</option>
+        <option value="en">English</option>
+        <option value="pt">Portuguese</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="zh">Chinese</option>
+        <option value="ru">Russian</option>
+      </select>
+      <input id="filtro-citacoes" type="number" placeholder="Min citations" min="0" style="width:110px">
+      <select id="filtro-adicionado">
+        <option value="">Added (any time)</option>
+        <option value="hoje">Today</option>
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+      <input id="filtro-autor" type="text" placeholder="Filter by author..." style="width:170px">
       <input id="filtro-ano-min" type="number" placeholder="From year" min="1900" max="2100" style="width:100px">
       <input id="filtro-ano-max" type="number" placeholder="To year" min="1900" max="2100" style="width:100px">
       <input id="filtro-busca-biblioteca" type="text" placeholder="Filter by title/classification...">
@@ -92,6 +121,9 @@
         <option value="ano_velho">Oldest year</option>
         <option value="classificacao">Classification A–Z</option>
         <option value="fonte">Source A–Z</option>
+        <option value="citacoes">Most cited</option>
+        <option value="favoritos">Favorites first</option>
+        <option value="autor">Author A–Z</option>
       </select>
       <button id="limpar-filtros" class="secundario">Clear</button>
     </div>

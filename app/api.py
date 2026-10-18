@@ -48,6 +48,7 @@ def criar_artigo(dados: dict):
     campos_papeis = {
         "id_fonte", "doi", "titulo", "autores", "ano", "tipo", "tipo_origem",
         "classificacao", "resumo", "url_pdf", "url_pagina", "urls_alternativas",
+        "read_status", "idioma", "citacoes",
     }
     artigo = {k: v for k, v in dados.items() if k in campos_papeis}
     if not artigo.get("titulo"):
@@ -56,6 +57,7 @@ def criar_artigo(dados: dict):
         artigo["autores"] = json.dumps(artigo["autores"], ensure_ascii=False)
     artigo["fonte"] = dados.get("fonte", "manual")
     artigo["acesso_aberto"] = 1 if dados.get("acesso_aberto") else 0
+    artigo["favorito"] = 1 if dados.get("favorito") else 0
     if artigo.get("urls_alternativas"):
         artigo["urls_alternativas"] = json.dumps(artigo["urls_alternativas"], ensure_ascii=False)
     else:
@@ -73,7 +75,7 @@ def criar_artigo(dados: dict):
 
 
 @app.get("/api/artigos")
-def listar_artigos(categoria_id: str = "", tipo_origem: str = "", pdf_status: str = "", tem_resumo: str = "", busca: str = "", fonte: str = "", acesso_aberto: str = "", ano_min: str = "", ano_max: str = "", ordenacao: str = ""):
+def listar_artigos(categoria_id: str = "", tipo_origem: str = "", pdf_status: str = "", tem_resumo: str = "", busca: str = "", fonte: str = "", acesso_aberto: str = "", ano_min: str = "", ano_max: str = "", ordenacao: str = "", autor: str = "", read_status: str = "", favorito: str = "", idioma: str = "", citacoes_min: str = "", adicionado: str = ""):
     return db.list_artigos({
         "categoria_id": categoria_id or None,
         "tipo_origem": tipo_origem or None,
@@ -85,6 +87,12 @@ def listar_artigos(categoria_id: str = "", tipo_origem: str = "", pdf_status: st
         "ano_min": ano_min or None,
         "ano_max": ano_max or None,
         "ordenacao": ordenacao or None,
+        "autor": autor or None,
+        "read_status": read_status or None,
+        "favorito": favorito or None,
+        "idioma": idioma or None,
+        "citacoes_min": citacoes_min or None,
+        "adicionado": adicionado or None,
     })
 
 
@@ -102,9 +110,11 @@ def atualizar_artigo(artigo_id: int, dados: dict):
     if not artigo:
         raise HTTPException(404, "Article not found")
     campos = {}
-    for chave in ("categoria_id", "classificacao", "tipo_origem", "notas", "titulo", "tipo"):
+    for chave in ("categoria_id", "classificacao", "tipo_origem", "notas", "titulo", "tipo", "read_status", "idioma"):
         if chave in dados and dados[chave] is not None:
             campos[chave] = dados[chave]
+    if dados.get("favorito") is not None:
+        campos["favorito"] = 1 if dados["favorito"] else 0
     if dados.get("nova_categoria") and dados["nova_categoria"].strip():
         campos["categoria_id"] = db.add_categoria(dados["nova_categoria"].strip())
     return db.update_artigo(artigo_id, campos)

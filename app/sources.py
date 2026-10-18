@@ -2,7 +2,7 @@ import re
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
@@ -78,6 +78,8 @@ def _normalizar_openalex(w):
         "urls_alternativas": locs[:5],
         "url_pagina": primary.get("landing_page_url") or (w.get("doi") or ""),
         "acesso_aberto": bool(w.get("open_access", {}).get("is_oa")),
+        "idioma": w.get("language") or "",
+        "citacoes": int(w.get("cited_by_count") or 0),
     }
 
 
@@ -93,7 +95,7 @@ def buscar_openalex(query, tipo=None, ano_min=None, ano_max=None, limite=25):
     params = {"search": query, "per-page": limite, "mailto": load_settings().get("email_unpaywall", "")}
     if filters:
         params["filter"] = ",".join(filters)
-    r = requests.get(f"{OPENALEX}/works", params=params, headers=_ua(), timeout=30)
+    r = requests.get(f"{OPENALEX}/works", params=params, headers=_ua(), timeout=15)
     r.raise_for_status()
     return [_normalizar_openalex(w) for w in r.json().get("results", [])]
 
@@ -126,6 +128,8 @@ def _normalizar_arxiv(e):
         "urls_alternativas": [id_url.replace("/abs/", "/pdf/") + ".pdf"],
         "url_pagina": id_url,
         "acesso_aberto": True,
+        "idioma": "en",
+        "citacoes": 0,
     }
 
 
@@ -137,7 +141,7 @@ def buscar_arxiv(query, limite=15):
         "sortOrder": "descending",
     }
     req = urllib.request.Request(f"{ARXIV_API}?{urllib.parse.urlencode(params)}", headers=_ua())
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=15) as resp:
         xml_data = resp.read()
     root = ET.fromstring(xml_data)
     return [_normalizar_arxiv(e) for e in root.findall("{http://www.w3.org/2005/Atom}entry")]
@@ -149,7 +153,7 @@ def obter_unpaywall(doi):
         return {}
     url = f"{UNPAYWALL}/{urllib.parse.quote(doi)}"
     try:
-        r = requests.get(url, params={"email": load_settings().get("email_unpaywall", "")}, headers=_ua(), timeout=25)
+        r = requests.get(url, params={"email": load_settings().get("email_unpaywall", "")}, headers=_ua(), timeout=15)
         if r.status_code != 200:
             return {}
         data = r.json()
@@ -170,7 +174,7 @@ def obter_crossref(doi):
     if not doi:
         return {}
     try:
-        r = requests.get(f"{CROSSREF}/{urllib.parse.quote(doi)}", headers=_ua(), timeout=25)
+        r = requests.get(f"{CROSSREF}/{urllib.parse.quote(doi)}", headers=_ua(), timeout=15)
         if r.status_code != 200:
             return {}
         data = r.json().get("message", {})
@@ -204,6 +208,8 @@ def _normalizar_semanticscholar(p):
         "urls_alternativas": [oa["url"]] if oa.get("url") else [],
         "url_pagina": f"https://www.semanticscholar.org/paper/{p.get('paperId')}" if p.get("paperId") else "",
         "acesso_aberto": bool(oa.get("url")),
+        "idioma": "",
+        "citacoes": int(p.get("citationCount") or 0),
     }
 
 
@@ -213,7 +219,7 @@ def buscar_semanticscholar(query, limite=15):
         "limit": limite,
         "fields": "title,abstract,authors,year,venue,externalIds,openAccessPdf,publicationTypes",
     }
-    r = requests.get(SEMANTICSCHOLAR, params=params, headers=_ua(), timeout=30)
+    r = requests.get(SEMANTICSCHOLAR, params=params, headers=_ua(), timeout=15)
     if r.status_code == 429:
         return []
     r.raise_for_status()
@@ -261,20 +267,22 @@ def _normalizar_pubmed(pa):
         "urls_alternativas": [url_pdf] if url_pdf else [],
         "url_pagina": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else "",
         "acesso_aberto": bool(url_pdf),
+        "idioma": (pa.findtext(".//Language") or "").lower()[:3],
+        "citacoes": 0,
     }
 
 
 def buscar_pubmed(query, limite=12):
     esearch = requests.get(PUBMED_ESEARCH, params={
         "db": "pubmed", "term": query, "retmax": limite, "retmode": "json", "sort": "relevance"
-    }, headers=_ua(), timeout=30)
+    }, headers=_ua(), timeout=15)
     esearch.raise_for_status()
     ids = esearch.json().get("esearchresult", {}).get("idlist", [])
     if not ids:
         return []
     efetch = requests.get(PUBMED_EFETCH, params={
         "db": "pubmed", "id": ",".join(ids), "rettype": "abstract", "retmode": "xml"
-    }, headers=_ua(), timeout=30)
+    }, headers=_ua(), timeout=15)
     efetch.raise_for_status()
     root = ET.fromstring(efetch.text)
     return [_normalizar_pubmed(pa) for pa in root.findall(".//PubmedArticle")]
@@ -306,11 +314,13 @@ def _normalizar_doaj(a):
         "urls_alternativas": [url_pdf] if url_pdf else [],
         "url_pagina": url_pagina,
         "acesso_aberto": True,
+        "idioma": (b.get("language") or [""])[0] if isinstance(b.get("language"), list) and b.get("language") else (b.get("language") or ""),
+        "citacoes": 0,
     }
 
 
 def buscar_doaj(query, limite=12):
-    r = requests.get(f"{DOAJ_API}/{urllib.parse.quote(query)}", params={"pageSize": limite, "page": 1}, headers=_ua(), timeout=30)
+    r = requests.get(f"{DOAJ_API}/{urllib.parse.quote(query)}", params={"pageSize": limite, "page": 1}, headers=_ua(), timeout=15)
     r.raise_for_status()
     return [_normalizar_doaj(a) for a in r.json().get("results", [])]
 
@@ -338,13 +348,15 @@ def _normalizar_europepmc(r):
         "urls_alternativas": [url_pdf] if url_pdf else [],
         "url_pagina": f"https://europepmc.org/article/{r.get('source')}/{r.get('id')}" if r.get("id") else ("https://europepmc.org/article/MED/{}".format(r.get("pmid")) if r.get("pmid") else ""),
         "acesso_aberto": bool(url_pdf),
+        "idioma": r.get("language") or "",
+        "citacoes": int(r.get("citedByCount") or 0),
     }
 
 
 def buscar_europepmc(query, limite=15):
     r = requests.get(EUROPEPMC, params={
         "query": query, "format": "json", "resultType": "core", "pageSize": limite
-    }, headers=_ua(), timeout=30)
+    }, headers=_ua(), timeout=15)
     r.raise_for_status()
     return [_normalizar_europepmc(x) for x in r.json().get("resultList", {}).get("result", [])]
 
@@ -384,15 +396,214 @@ def _normalizar_crossref(m):
         "urls_alternativas": links[:5],
         "url_pagina": f"https://doi.org/{m.get('DOI')}" if m.get("DOI") else "",
         "acesso_aberto": bool(links),
+        "idioma": m.get("language") or "",
+        "citacoes": int(m.get("is-referenced-by-count") or 0),
     }
 
 
 def buscar_crossref(query, limite=12):
     r = requests.get(CROSSREF, params={
         "query": query, "rows": limite, "select": "DOI,title,author,issued,abstract,container-title,type,link"
-    }, headers=_ua(), timeout=30)
+    }, headers=_ua(), timeout=15)
     r.raise_for_status()
     return [_normalizar_crossref(m) for m in r.json().get("message", {}).get("items", [])]
+
+
+def _normalizar_dblp(info):
+    autores = info.get("authors", {}).get("author", [])
+    if isinstance(autores, str):
+        autores = [autores]
+    autores = [a.get("text", a) if isinstance(a, dict) else a for a in autores][:15]
+    tipo = (info.get("type") or "").lower()
+    if "conference" in tipo:
+        tipo_origem = "anais_congresso"
+    elif "journal" in tipo or "article" in tipo:
+        tipo_origem = "artigo_periodico"
+    elif "book" in tipo or "thesis" in tipo:
+        tipo_origem = "livro" if "book" in tipo else "tese_dissertacao"
+    else:
+        tipo_origem = "artigo_periodico"
+    ee = info.get("ee") or ""
+    return {
+        "id_fonte": f"dblp:{info.get('key')}",
+        "fonte": "dblp",
+        "doi": ("https://doi.org/" + info["doi"]) if info.get("doi") else "",
+        "titulo": info.get("title") or "Untitled",
+        "autores": autores,
+        "ano": int(info["year"]) if str(info.get("year") or "").isdigit() else None,
+        "tipo": "article" if tipo_origem == "artigo_periodico" else tipo_origem,
+        "tipo_origem": tipo_origem,
+        "resumo": "",
+        "classificacao": info.get("venue") or "",
+        "url_pdf": ee if ee.lower().endswith(".pdf") else "",
+        "urls_alternativas": [ee] if ee else [],
+        "url_pagina": info.get("url") or "",
+        "acesso_aberto": True if ee else False,
+        "idioma": "",
+        "citacoes": 0,
+    }
+
+
+def buscar_dblp(query, limite=8):
+    r = requests.get("https://dblp.org/search/publ/api", params={
+        "q": query, "format": "json", "h": limite,
+    }, headers=_ua(), timeout=15)
+    r.raise_for_status()
+    hits = r.json().get("result", {}).get("hits", {}).get("hit", []) or []
+    return [_normalizar_dblp(h.get("info", {})) for h in hits]
+
+
+def _normalizar_hal(doc):
+    url_pdf = ""
+    for f in (doc.get("fileMain_s") or [])[:2]:
+        if isinstance(f, str) and f.startswith("http"):
+            url_pdf = f
+            break
+    autores = []
+    for a in doc.get("authFullName_s", []) or []:
+        partes = [p.strip() for p in a.split(",")]
+        if len(partes) == 2:
+            autores.append(f"{partes[1]} {partes[0]}")
+        else:
+            autores.append(a)
+    doc_tipo = (doc.get("docType_s") or "ART")
+    ano = (doc.get("producedDateY_i") or [None])
+    ano = ano[0] if isinstance(ano, list) and ano else (doc.get("producedDateY_i") if isinstance(doc.get("producedDateY_i"), int) else None)
+    return {
+        "id_fonte": f"hal:{doc.get('halId_s') or doc.get('docid')}",
+        "fonte": "hal",
+        "doi": ("https://doi.org/" + doc["doiId_s"]) if doc.get("doiId_s") else "",
+        "titulo": (doc.get("title_s") or ["Untitled"])[0],
+        "autores": autores[:15],
+        "ano": ano,
+        "tipo": "preprint" if doc_tipo == "PREPRINT" else "article",
+        "tipo_origem": "preprint" if doc_tipo == "PREPRINT" else "artigo_periodico",
+        "resumo": (doc.get("abstract_s") or [""])[0],
+        "classificacao": (doc.get("journalTitle_s") or "") or (doc.get("none") or ""),
+        "url_pdf": url_pdf,
+        "urls_alternativas": [url_pdf] if url_pdf else [],
+        "url_pagina": doc.get("uri_s") or "",
+        "acesso_aberto": bool(url_pdf),
+        "idioma": (doc.get("language_s") or [""])[0] or "",
+        "citacoes": 0,
+    }
+
+
+def buscar_hal(query, limite=8):
+    r = requests.get("https://api.archives-ouvertes.fr/search/", params={
+        "q": query, "fl": "title_s,abstract_s,doiId_s,authFullName_s,producedDateY_i,fileMain_s,uri_s,docType_s,halId_s,language_s,journalTitle_s",
+        "wt": "json", "rows": limite,
+    }, headers=_ua(), timeout=15)
+    r.raise_for_status()
+    return [_normalizar_hal(d) for d in r.json().get("response", {}).get("docs", [])]
+
+
+def _normalizar_zenodo(rec):
+    md = rec.get("metadata", {})
+    criadores = []
+    for c in md.get("creators", []) or []:
+        nome = c.get("name", "")
+        if "," in nome:
+            partes = [p.strip() for p in nome.split(",")]
+            nome = f"{partes[1]} {partes[0]}"
+        criadores.append(nome)
+    url_pdf = ""
+    for f in rec.get("files", []) or []:
+        if (f.get("key") or "").lower().endswith(".pdf"):
+            url_pdf = f.get("links", {}).get("self", "")
+            break
+    data = md.get("publication_date", "")
+    return {
+        "id_fonte": f"zenodo:{rec.get('id')}",
+        "fonte": "zenodo",
+        "doi": md.get("doi") or "",
+        "titulo": md.get("title") or "Untitled",
+        "autores": criadores[:15],
+        "ano": int(data[:4]) if str(data)[:4].isdigit() else None,
+        "tipo": "article",
+        "tipo_origem": "artigo_periodico" if md.get("resource_type", {}).get("type") == "publication" else "capitulo_livro",
+        "resumo": re.sub(r"<[^>]+>", "", md.get("description") or "")[:2000],
+        "classificacao": ", ".join(md.get("subjects", [])[:3]),
+        "url_pdf": url_pdf,
+        "urls_alternativas": [url_pdf] if url_pdf else [],
+        "url_pagina": rec.get("links", {}).get("html") or "",
+        "acesso_aberto": True,
+        "idioma": md.get("language") or "",
+        "citacoes": 0,
+    }
+
+
+def buscar_zenodo(query, limite=8):
+    r = requests.get("https://zenodo.org/api/records", params={
+        "q": query, "size": limite, "sort": "mostrelevance",
+        "type": "publication",
+    }, headers=_ua(), timeout=15)
+    r.raise_for_status()
+    return [_normalizar_zenodo(rec) for rec in r.json().get("hits", {}).get("hits", [])]
+
+
+def _extrair_openaire(res):
+    ent = res.get("metadata", {}).get("oaf:entity", {})
+    r = ent.get("oaf:result", {})
+    if not r:
+        return None
+    md = r.get("metadata", {})
+    titulo = ""
+    for t in r.get("title") or []:
+        if isinstance(t, dict) and t.get("$"):
+            titulo = t["$"]
+            break
+    criadores = []
+    for c in r.get("creator") or []:
+        if isinstance(c, dict) and c.get("$"):
+            criadores.append(str(c["$"]))
+    doi = ""
+    for p in r.get("pid") or []:
+        if isinstance(p, dict) and str(p.get("@classid", "")) == "doi":
+            doi = str(p.get("$", "")).replace("doi:", "")
+            break
+    data = r.get("dateofacceptance") or {}
+    if isinstance(data, dict):
+        ano = str(data.get("$", ""))[:4]
+    else:
+        ano = ""
+    respublicacao = r.get("resulttype") or {}
+    eh_preprint = "preprint" in str(respublicacao.get("@classid", "")).lower() or "0017" in str(respublicacao.get("@classid", ""))
+    tipo_origem = "preprint" if eh_preprint else "artigo_periodico"
+    idioma = (r.get("language") or {}).get("@classid", "")
+    acesso = str((r.get("bestaccessright") or {}).get("@classid", "")).upper()
+    url_pagina = f"https://doi.org/{doi}" if doi else ""
+    return {
+        "id_fonte": "openaire:" + str((r.get("originalId") or "")),
+        "fonte": "openaire",
+        "doi": ("https://doi.org/" + doi) if doi else "",
+        "titulo": titulo.strip() or "Untitled",
+        "autores": criadores[:15],
+        "ano": int(ano) if str(ano).isdigit() else None,
+        "tipo": "preprint" if eh_preprint else "article",
+        "tipo_origem": tipo_origem,
+        "resumo": "",
+        "classificacao": "",
+        "url_pdf": "",
+        "urls_alternativas": [],
+        "url_pagina": url_pagina,
+        "acesso_aberto": acesso in ("OPEN", "GREEN", "GOLD"),
+        "idioma": idioma,
+        "citacoes": 0,
+    }
+
+
+def buscar_openaire(query, limite=8):
+    r = requests.get("https://api.openaire.eu/search/publications", params={
+        "keywords": query, "format": "json", "size": limite,
+    }, headers=_ua(), timeout=8)
+    r.raise_for_status()
+    resultados = []
+    for res in (r.json().get("response", {}).get("results", {}).get("result", []) or []):
+        normal = _extrair_openaire(res)
+        if normal:
+            resultados.append(normal)
+    return resultados
 
 
 def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None):
@@ -407,19 +618,30 @@ def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None):
 
     tarefas = []
     if not tipo_origem or tipo_origem in ("artigo_periodico", "revisao", "anais_congresso", "capitulo_livro", "livro", "tese_dissertacao", "relatorio"):
-        tarefas.append(lambda: rodar_alvo(buscar_openalex, tipo=tipo_o, ano_min=ano_min, ano_max=ano_max, limite=18))
-        tarefas.append(lambda: rodar_alvo(buscar_pubmed, limite=8))
-        tarefas.append(lambda: rodar_alvo(buscar_doaj, limite=8))
-        tarefas.append(lambda: rodar_alvo(buscar_europepmc, limite=10))
-        tarefas.append(lambda: rodar_alvo(buscar_crossref, limite=8))
-        tarefas.append(lambda: rodar_alvo(buscar_semanticscholar, limite=10))
+        tarefas.append(lambda: rodar_alvo(buscar_openalex, tipo=tipo_o, ano_min=ano_min, ano_max=ano_max, limite=16))
+        tarefas.append(lambda: rodar_alvo(buscar_pubmed, limite=6))
+        tarefas.append(lambda: rodar_alvo(buscar_doaj, limite=6))
+        tarefas.append(lambda: rodar_alvo(buscar_europepmc, limite=8))
+        tarefas.append(lambda: rodar_alvo(buscar_crossref, limite=6))
+        tarefas.append(lambda: rodar_alvo(buscar_semanticscholar, limite=8))
+        tarefas.append(lambda: rodar_alvo(buscar_dblp, limite=6))
+        tarefas.append(lambda: rodar_alvo(buscar_hal, limite=6))
+        tarefas.append(lambda: rodar_alvo(buscar_zenodo, limite=6))
+        tarefas.append(lambda: rodar_alvo(buscar_openaire, limite=6))
     if not tipo_origem or tipo_origem == "preprint":
         tarefas.append(lambda: rodar_alvo(buscar_arxiv, limite=8))
         tarefas.append(lambda: rodar_alvo(buscar_semanticscholar, limite=6))
+        tarefas.append(lambda: rodar_alvo(buscar_hal, limite=6))
+        tarefas.append(lambda: rodar_alvo(buscar_openaire, limite=6))
     resultados = []
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        for lote in pool.map(lambda f: f(), tarefas):
-            resultados.extend(lote)
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = [pool.submit(f) for f in tarefas]
+        for fut in as_completed(futures, timeout=22):
+            try:
+                lote = fut.result()
+                resultados.extend(lote)
+            except Exception:
+                pass
     vistos = {}
     for r in resultados:
         chave = (r.get("doi") or r.get("titulo", "").lower()[:80]) or r.get("id_fonte", "")
@@ -431,6 +653,10 @@ def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None):
                 antigo["url_pdf"] = r["url_pdf"]
             if not antigo.get("acesso_aberto") and r.get("acesso_aberto"):
                 antigo["acesso_aberto"] = True
+            if not antigo.get("idioma") and r.get("idioma"):
+                antigo["idioma"] = r["idioma"]
+            if not antigo.get("citacoes") and r.get("citacoes"):
+                antigo["citacoes"] = r["citacoes"]
             continue
         vistos[chave] = r
     return list(vistos.values())
