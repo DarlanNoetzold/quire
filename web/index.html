@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitor de Artigos</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="logo">📚 Leitor de Artigos</div>
+  <nav>
+    <button class="aba ativa" data-aba="buscar">Buscar</button>
+    <button class="aba" data-aba="biblioteca">Biblioteca</button>
+    <button class="aba" data-aba="importar">Importar</button>
+    <button class="aba" data-aba="config">Configurações</button>
+  </nav>
+</header>
+
+<main>
+  <section id="aba-buscar" class="painel ativo">
+    <div class="bloco-busca">
+      <input id="campo-busca" type="text" placeholder="Palavras-chave, título ou autor (ex.: machine learning saúde)..." autocomplete="off">
+      <button id="botao-buscar" class="primario">Buscar</button>
+    </div>
+    <div class="filtros">
+      <select id="filtro-tipo-busca">
+        <option value="">Qualquer tipo de origem</option>
+        <option value="artigo_periodico">Artigo de periódico</option>
+        <option value="preprint">Preprint</option>
+        <option value="revisao">Revisão</option>
+        <option value="capitulo_livro">Capítulo de livro</option>
+        <option value="anais_congresso">Anais de congresso</option>
+        <option value="tese_dissertacao">Tese/Dissertação</option>
+      </select>
+      <input id="ano-min" type="number" placeholder="Ano mín." min="1900" max="2100" style="width:100px">
+      <input id="ano-max" type="number" placeholder="Ano máx." min="1900" max="2100" style="width:100px">
+      <span id="status-busca" class="status-texto"></span>
+    </div>
+    <div id="resultados-busca" class="lista"></div>
+  </section>
+
+  <section id="aba-biblioteca" class="painel">
+    <div class="filtros">
+      <select id="filtro-categoria"></select>
+      <select id="filtro-tipo">
+        <option value="">Qualquer tipo de origem</option>
+        <option value="artigo_periodico">Artigo de periódico</option>
+        <option value="preprint">Preprint</option>
+        <option value="revisao">Revisão</option>
+        <option value="capitulo_livro">Capítulo de livro</option>
+        <option value="anais_congresso">Anais de congresso</option>
+        <option value="tese_dissertacao">Tese/Dissertação</option>
+      </select>
+      <select id="filtro-status">
+        <option value="">Qualquer status de PDF</option>
+        <option value="nao_baixado">Sem download</option>
+        <option value="baixado">PDF baixado</option>
+        <option value="baixando">Baixando...</option>
+        <option value="falha">Falha no download</option>
+        <option value="nao_disponivel">Sem versão aberta</option>
+      </select>
+      <select id="filtro-resumo">
+        <option value="">Qualquer status de resumo</option>
+        <option value="sim">Tem resumo</option>
+        <option value="nao">Sem resumo</option>
+      </select>
+      <input id="filtro-busca-biblioteca" type="text" placeholder="Filtrar por título/classificação...">
+      <button id="limpar-filtros" class="secundario">Limpar</button>
+    </div>
+    <div id="lista-biblioteca" class="lista"></div>
+  </section>
+
+  <section id="aba-importar" class="painel">
+    <h2>Importar PDF manualmente</h2>
+    <p class="ajuda">Use quando não houver versão aberta automática (acesso por assinatura, SciELO, etc.). O PDF fica só no seu computador.</p>
+    <div id="zona-drop" class="drop">
+      <p>Arraste o PDF aqui ou <span class="link">clique para escolher</span></p>
+      <input type="file" id="arquivo-import" accept="application/pdf" hidden>
+      <div id="nome-arquivo" class="arquivo-nome"></div>
+    </div>
+    <div class="form-grid">
+      <input id="imp-titulo" type="text" placeholder="Título (automático se vazio)">
+      <input id="imp-autores" type="text" placeholder="Autores (separe por ;)">
+      <input id="imp-ano" type="number" placeholder="Ano" min="1900" max="2100">
+      <input id="imp-classificacao" type="text" placeholder="Classificação (ex.: Ciência da Computação)">
+      <input id="imp-categoria" type="text" placeholder="Categoria da biblioteca (ex.: IA)">
+    </div>
+    <button id="botao-importar" class="primario">Importar PDF</button>
+    <span id="status-importar" class="status-texto"></span>
+  </section>
+
+  <section id="aba-config" class="painel">
+    <h2>Configurações</h2>
+    <div id="status-ferramentas" class="caixa-status"></div>
+    <div class="form-grid">
+      <label>Provedor de resumo
+        <select id="cfg-provider">
+          <option value="ollama">Ollama local (grátis, PDFs não saem do seu PC)</option>
+          <option value="abacus">Abacus AI (online, usa créditos/chave própria)</option>
+        </select>
+      </label>
+      <label>Modelo Ollama
+        <select id="cfg-ollama-model">
+          <option value="qwen2.5:3b">qwen2.5:3b (leve, ~2 GB)</option>
+          <option value="llama3.2:3b">llama3.2:3b (leve, ~2 GB)</option>
+          <option value="qwen2.5:7b">qwen2.5:7b (bom, ~4,7 GB)</option>
+          <option value="llama3.1:8b">llama3.1:8b (bom, ~4,7 GB)</option>
+        </select>
+      </label>
+      <label>URL do Ollama
+        <input id="cfg-ollama-url" type="text" value="http://127.0.0.1:11434">
+      </label>
+      <label>Chave da API Abacus (para provedor Abacus)
+        <input id="cfg-abacus-key" type="password" placeholder="Cole sua chave (fica só no seu PC)">
+      </label>
+      <label>URL da API Abacus
+        <input id="cfg-abacus-url" type="text" value="https://routellm.abacus.ai/v1">
+      </label>
+      <label>Modelo Abacus
+        <input id="cfg-abacus-model" type="text" value="route-llm">
+      </label>
+    </div>
+    <button id="salvar-config" class="primario">Salvar configurações</button>
+    <span id="status-config" class="status-texto"></span>
+  </section>
+</main>
+
+<div id="modal-detalhe" class="modal-escuro" hidden>
+  <div class="modal">
+    <button id="fechar-modal" class="fechar">✕</button>
+    <div id="conteudo-detalhe"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
