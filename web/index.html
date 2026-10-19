@@ -35,6 +35,35 @@
       </select>
       <input id="ano-min" type="number" placeholder="Min year" min="1900" max="2100" style="width:100px">
       <input id="ano-max" type="number" placeholder="Max year" min="1900" max="2100" style="width:100px">
+      <select id="filtro-fonte-busca" multiple title="Ctrl+click to select multiple sources">
+        <option value="openalex">OpenAlex</option>
+        <option value="arxiv">arXiv</option>
+        <option value="pubmed">PubMed</option>
+        <option value="crossref">Crossref</option>
+        <option value="doaj">DOAJ</option>
+        <option value="europepmc">Europe PMC</option>
+        <option value="semanticscholar">Semantic Scholar</option>
+        <option value="dblp">dblp</option>
+        <option value="hal">HAL</option>
+        <option value="zenodo">Zenodo</option>
+        <option value="openaire">OpenAIRE</option>
+      </select>
+      <select id="filtro-idioma-busca">
+        <option value="">Any language</option>
+        <option value="en">English</option>
+        <option value="pt">Portuguese</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+      </select>
+      <label class="check-inline"><input type="checkbox" id="filtro-oa-busca"> Open access</label>
+      <select id="filtro-ord-busca">
+        <option value="">Most relevant</option>
+        <option value="ano_novo">Newest first</option>
+        <option value="ano_velho">Oldest first</option>
+        <option value="citacoes">Most cited</option>
+        <option value="titulo_az">Title A–Z</option>
+      </select>
       <span id="status-busca" class="status-texto"></span>
     </div>
     <div id="resultados-busca" class="lista"></div>

@@ -7,6 +7,13 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        resposta = await super().get_response(path, scope)
+        resposta.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return resposta
+
 from . import db, downloader, jobs, sources, summarizer
 from .config import BASE_DIR, PDF_DIR, ensure_dirs
 
@@ -32,7 +39,7 @@ def _startup():
 
 
 @app.get("/api/busca")
-def busca(q: str, tipo_origem: str = "", ano_min: str = "", ano_max: str = ""):
+def busca(q: str, tipo_origem: str = "", ano_min: str = "", ano_max: str = "", fontes: str = "", idioma: str = "", acesso_aberto: str = "", ordenacao: str = ""):
     if not q.strip():
         raise HTTPException(400, "Enter at least one keyword")
     return sources.buscar_tudo(
@@ -40,6 +47,10 @@ def busca(q: str, tipo_origem: str = "", ano_min: str = "", ano_max: str = ""):
         tipo_origem=tipo_origem or None,
         ano_min=ano_min or None,
         ano_max=ano_max or None,
+        fontes=fontes.split(",") if fontes else None,
+        idioma=idioma or None,
+        acesso_aberto=bool(acesso_aberto),
+        ordenacao=ordenacao or None,
     )
 
 
@@ -264,4 +275,4 @@ def status_ferramentas():
     }
 
 
-app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+app.mount("/", NoCacheStaticFiles(directory=WEB_DIR, html=True), name="web")

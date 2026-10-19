@@ -143,11 +143,15 @@ function debounce(fn, ms) {
 async function buscar() {
   const q = $("campo-busca").value.trim();
   if (!q) { toast("Type keywords to search"); return; }
-  const tipo = $("filtro-tipo-busca").value;
   const params = new URLSearchParams({ q });
-  if (tipo) params.set("tipo_origem", tipo);
+  if ($("filtro-tipo-busca").value) params.set("tipo_origem", $("filtro-tipo-busca").value);
   if ($("ano-min").value) params.set("ano_min", $("ano-min").value);
   if ($("ano-max").value) params.set("ano_max", $("ano-max").value);
+  const fontes = [...$("filtro-fonte-busca").selectedOptions].map(o => o.value);
+  if (fontes.length) params.set("fontes", fontes.join(","));
+  if ($("filtro-idioma-busca").value) params.set("idioma", $("filtro-idioma-busca").value);
+  if ($("filtro-oa-busca").checked) params.set("acesso_aberto", "1");
+  if ($("filtro-ord-busca").value) params.set("ordenacao", $("filtro-ord-busca").value);
   $("status-busca").textContent = "Searching...";
   try {
     const t0 = Date.now();
@@ -156,7 +160,7 @@ async function buscar() {
     const div = $("resultados-busca");
     div.innerHTML = resultados.length
       ? resultados.map(r => cartaoArtigo(r, true)).join("")
-      : '<p class="vazio">No articles found. Try other keywords.</p>';
+      : '<p class="vazio">No articles found. Try other keywords or loosen the filters.</p>';
   } catch (e) {
     $("status-busca").textContent = "Search error: " + e.message;
   }

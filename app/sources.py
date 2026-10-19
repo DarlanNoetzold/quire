@@ -606,9 +606,22 @@ def buscar_openaire(query, limite=8):
     return resultados
 
 
-def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None):
+def _ordenar_resultados(resultados, ordenacao):
+    if ordenacao == "ano_novo":
+        return sorted(resultados, key=lambda r: (r.get("ano") is None, -(r.get("ano") or 0)))
+    if ordenacao == "ano_velho":
+        return sorted(resultados, key=lambda r: (r.get("ano") is None, r.get("ano") or 0))
+    if ordenacao == "citacoes":
+        return sorted(resultados, key=lambda r: -(r.get("citacoes") or 0))
+    if ordenacao == "titulo_az":
+        return sorted(resultados, key=lambda r: (r.get("titulo") or "").lower())
+    return resultados
+
+
+def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None, fontes=None, idioma=None, acesso_aberto=None, ordenacao=None):
     tipo_map_reverso = {v: k for k, v in TIPO_ORIGEM_MAPA.items()}
     tipo_o = tipo_map_reverso.get(tipo_origem) if tipo_origem else None
+    fontes = set(fontes) if fontes else None
 
     def rodar_alvo(alvo, **kw):
         try:
@@ -618,30 +631,53 @@ def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None):
 
     tarefas = []
     if not tipo_origem or tipo_origem in ("artigo_periodico", "revisao", "anais_congresso", "capitulo_livro", "livro", "tese_dissertacao", "relatorio"):
-        tarefas.append(lambda: rodar_alvo(buscar_openalex, tipo=tipo_o, ano_min=ano_min, ano_max=ano_max, limite=16))
-        tarefas.append(lambda: rodar_alvo(buscar_pubmed, limite=6))
-        tarefas.append(lambda: rodar_alvo(buscar_doaj, limite=6))
-        tarefas.append(lambda: rodar_alvo(buscar_europepmc, limite=8))
-        tarefas.append(lambda: rodar_alvo(buscar_crossref, limite=6))
-        tarefas.append(lambda: rodar_alvo(buscar_semanticscholar, limite=8))
-        tarefas.append(lambda: rodar_alvo(buscar_dblp, limite=6))
-        tarefas.append(lambda: rodar_alvo(buscar_hal, limite=6))
-        tarefas.append(lambda: rodar_alvo(buscar_zenodo, limite=6))
-        tarefas.append(lambda: rodar_alvo(buscar_openaire, limite=6))
+        pares_gerais = [
+            (buscar_openalex, {"tipo": tipo_o, "ano_min": ano_min, "ano_max": ano_max, "limite": 16}, "openalex"),
+            (buscar_pubmed, {"limite": 6}, "pubmed"),
+            (buscar_doaj, {"limite": 6}, "doaj"),
+            (buscar_europepmc, {"limite": 8}, "europepmc"),
+            (buscar_crossref, {"limite": 6}, "crossref"),
+            (buscar_semanticscholar, {"limite": 8}, "semanticscholar"),
+            (buscar_dblp, {"limite": 6}, "dblp"),
+            (buscar_hal, {"limite": 6}, "hal"),
+            (buscar_zenodo, {"limite": 6}, "zenodo"),
+            (buscar_openaire, {"limite": 6}, "openaire"),
+        ]
+        for fn, kw, nome in pares_gerais:
+            if not fontes or nome in fontes:
+                tarefas.append((nome, lambda fn=fn, kw=kw: rodar_alvo(fn, **kw)))
     if not tipo_origem or tipo_origem == "preprint":
-        tarefas.append(lambda: rodar_alvo(buscar_arxiv, limite=8))
-        tarefas.append(lambda: rodar_alvo(buscar_semanticscholar, limite=6))
-        tarefas.append(lambda: rodar_alvo(buscar_hal, limite=6))
-        tarefas.append(lambda: rodar_alvo(buscar_openaire, limite=6))
+        pares_preprint = [
+            (buscar_arxiv, {"limite": 8}, "arxiv"),
+            (buscar_semanticscholar, {"limite": 6}, "semanticscholar"),
+            (buscar_hal, {"limite": 6}, "hal"),
+            (buscar_openaire, {"limite": 6}, "openaire"),
+        ]
+        for fn, kw, nome in pares_preprint:
+            if not fontes or nome in fontes:
+                tarefas.append((nome, lambda fn=fn, kw=kw: rodar_alvo(fn, **kw)))
     resultados = []
+    vistos_tasks = {}
     with ThreadPoolExecutor(max_workers=10) as pool:
-        futures = [pool.submit(f) for f in tarefas]
+        futures = {pool.submit(f): nome for nome, f in tarefas}
+        vistos_tasks = futures
         for fut in as_completed(futures, timeout=22):
             try:
                 lote = fut.result()
                 resultados.extend(lote)
             except Exception:
                 pass
+    if ano_min or ano_max:
+        antes = len(resultados)
+        resultados = [
+            r for r in resultados
+            if (not ano_min or (r.get("ano") or 0) >= int(ano_min))
+            and (not ano_max or (r.get("ano") or 0) <= int(ano_max))
+        ]
+    if idioma:
+        resultados = [r for r in resultados if not r.get("idioma") or r["idioma"] == idioma]
+    if acesso_aberto:
+        resultados = [r for r in resultados if r.get("acesso_aberto")]
     vistos = {}
     for r in resultados:
         chave = (r.get("doi") or r.get("titulo", "").lower()[:80]) or r.get("id_fonte", "")
@@ -659,4 +695,4 @@ def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None):
                 antigo["citacoes"] = r["citacoes"]
             continue
         vistos[chave] = r
-    return list(vistos.values())
+    return _ordenar_resultados(list(vistos.values()), ordenacao)

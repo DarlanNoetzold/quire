@@ -4,7 +4,7 @@ Local app that unifies your scientific paper reading workflow: **search, downloa
 
 ## Features
 
-- **Unified search** by keywords with filters for source type (journal article, preprint, review, book chapter...) and year range, across **11 sources**:
+- **Unified search** by keywords with filters for source type (journal article, preprint, review, book chapter...), year range, **which sources to query** (multi-select), language, open access only, and **result sorting** (relevance, newest/oldest, most cited, title), across **11 sources**:
   - [OpenAlex](https://openalex.org) — global catalog (journals, repositories, automatic field classification)
   - [arXiv](https://arxiv.org) — preprints
   - [PubMed](https://pubmed.ncbi.nlm.nih.gov) — biomedical literature (MeSH classification)
