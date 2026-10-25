@@ -1,124 +1,194 @@
-# Quire 📚
+# Quire
 
-**Sua biblioteca de pesquisa, local e privada.**
+Local and private research library application.
 
-O Quire unifica o fluxo de leitura científica num único app que roda 100% no seu
-computador: **busca em 16+ fontes**, **download legal de PDFs abertos**, **resumos
-estruturados** gerados por IA local, **leitor de PDF com progresso**, **notas e
-tags** por artigo, **gráficos estatísticos** e **exportação** para BibTeX,
-Markdown, JSON ou backup completo.
+Quire streamlines scientific discovery and reading into a self-hosted workspace that runs locally on your machine: unified querying across 16+ academic sources, open-access PDF retrieval, AI-driven structured paper summaries, integrated reader with progress tracking, notes and tags, statistical analytics, and export options (BibTeX, Markdown, JSON, and complete ZIP backups).
 
-## Funcionalidades
+---
 
-### 🔍 Busca unificada (16+ fontes)
-Busca por palavras-chave com filtros: tipo de artigo, intervalo de anos, fontes
-(multi-seleção), idioma, só acesso aberto e ordenação (relevância, mais novos/
-antigos, mais citados, título).
-Fontes: **OpenAlex, arXiv, PubMed, Crossref, DOAJ, Europe PMC, Semantic Scholar,
-dblp, HAL, Zenodo, OpenAIRE, PLOS, OpenReview, OSF, Figshare, DataCite**.
+## Features
 
-### ⚡ Em alta
-Destaques dos últimos 7/30/90 dias e **tópicos em alta na sua área** (lista de
-palavras-chave configurável), além dos papers do dia da **Hugging Face Daily
-Papers**. Tudo adicionável à biblioteca com um clique.
+### Unified Search (16+ Academic Sources)
+- Filter by keywords, publication type, publication year range, data sources, language, open-access status, and sorting order (relevance, newest, oldest, most cited, title).
+- Integrated sources: OpenAlex, arXiv, PubMed, Crossref, DOAJ, Europe PMC, Semantic Scholar, dblp, HAL, Zenodo, OpenAIRE, PLOS, OpenReview, OSF, Figshare, and DataCite.
 
-### 📥 Download legal de PDFs
-Resolvedores de DOI (OpenAlex → Unpaywall → Crossref) + o próprio link do PDF do
-artigo. Sem versão aberta? **Importe manualmente** (arraste e solte) — o app tenta
-preencher título, autores, ano e classificação pelo DOI encontrado no PDF.
+### Trending & Literature Monitoring
+- Highlights across 7, 30, and 90-day intervals.
+- Configurable topic monitoring tailored to research domains.
+- Daily paper updates via Hugging Face Daily Papers.
+- Single-click library addition.
 
-### ✨ Resumos estruturados
-Gera **apenas o que você pedir**: objetivos, metodologia, resultados,
-contribuições, limitações, novidade, trabalhos relacionados/futuros e seções
-personalizadas — com idioma selecionável (inglês/português). Roda localmente
-via **Ollama** (seus PDFs nunca saem do PC) ou via **Abacus AI** (opcional).
+### PDF Acquisition & Manual Ingestion
+- Automated DOI resolution pipeline (OpenAlex -> Unpaywall -> Crossref) plus primary publisher PDF links.
+- Manual drag-and-drop ingestion for documents behind paywalls or offline files.
+- Metadata auto-extraction (title, authors, year, classification) using embedded DOI indexing.
 
-### 📖 Leitor com progresso e notas
-- **Leitor de PDF embutido** com barra de progresso por página; o progresso é
-  salvo automaticamente e aparece em cada card da biblioteca.
-- **Anotações editáveis** por artigo (notas de leitura).
-- **Tags** por artigo, filtráveis e clicáveis.
-- **Marcar como lido** direto no leitor.
+### Structured Paper Summaries
+- Configurable section breakdown: objectives, methodology, key findings, core contributions, limitations, novelty, and related/future work.
+- Multi-language generation support (English and Portuguese).
+- Execution engines: Local via Ollama (zero data leaves the host) or remote via Abacus AI API.
 
-### 📚 Biblioteca organizada
-- Classificação com **categoria e cor editáveis** (renomear, mudar cor, excluir).
-- Filtros: categoria, tipo, fonte, status do PDF, resumo, leitura, favoritos,
-  idioma, mínimo de citações, autor, ano e data de adição.
-- **12 opções de ordenação**, incluindo "em leitura primeiro" e "última leitura".
-- **Dashboard de estatísticas** com gráficos: artigos por ano, distribuição por
-  fonte e status de leitura.
-- **Stats rápidos** (total, com PDF, resumidos, favoritos, não lidos, citações).
+### In-App Document Reader
+- Built-in PDF reader with persistent reading progress tracking per page.
+- Markdown annotations and reading notes linked per article.
+- Categorization tags with filtering and navigation.
+- Status toggle to mark papers as read.
 
-### 📤 Exportação e dados
-- **BibTeX**, **JSON** e **Markdown** da biblioteca inteira ou de um único artigo
-  (resumo + notas + tags).
-- **Backup completo (ZIP)** do banco e de todos os PDFs.
-- **Resumir em lote**: um clique agenda resumo para todos os artigos com PDF que
-  ainda não têm.
+### Library Organization & Analytics
+- Custom categories with editable color palettes and taxonomy.
+- Filtering by category, document type, source, PDF status, summary status, reading state, favorites, language, citation count threshold, author, and date added.
+- 12 sorting dimensions including "currently reading first" and "last read".
+- Statistical dashboard tracking publications by year, source distribution, and reading velocity.
 
-### 🛡️ Proteção e gestão de PDFs
-- Proteção contra duplicatas (mesmo DOI/título rejeitado com aviso).
-- Rebaixar, anexar ou **excluir só o PDF** (mantendo o registro).
-- DOI mostrado quando não há PDF, com link ao editor e botão copiar.
+### Data Management & Export
+- Formats supported: BibTeX, JSON, and Markdown (individual article or batch export).
+- Full database and PDF repository backup via ZIP archive.
+- Batch job queuing for background summarization of pending documents.
 
-### 📊 Métricas por artigo
-No detalhe, "Obter métricas" busca citações totais, referências, barras de
-citação por ano e conceitos de pesquisa no OpenAlex.
+---
 
-## Requisitos
-
-- Python 3.10+ (WSL ou Windows)
-- [Ollama](https://ollama.com) instalado e rodando (modelo local ~2 GB, baixado
-  automaticamente no primeiro resumo)
-- Opcional: chave da API Abacus AI (https://routellm.abacus.ai/v1, modelo `route-llm`)
-
-## Como rodar
-
-**No Windows:** `start.bat`
-
-**No WSL/Linux:** `./run.sh`
-
-Abra <http://localhost:8000>.
-
-## Como usar
-
-1. **Buscar**: digite palavras-chave, aplique filtros e clique em Buscar.
-2. **Adicionar**: na busca, use "＋ Adicionar" para mandar para a biblioteca.
-3. **Baixar**: na biblioteca, "Baixar PDF" tenta as fontes abertas em ordem.
-4. **Ler**: com PDF, clique "📖 Ler" — o leitor abre e o progresso é salvo.
-5. **Resumir**: clique "✨ Resumir"; use "⚡ Resumir todos" na biblioteca para o
-   lote inteiro.
-6. **Anotar e tagear**: em "Detalhes", edite notas e tags e salve.
-7. **Organizar**: ajuste classificação/categoria em Detalhes, ou edite cores no
-   painel de Categorias em Ajustes.
-8. **Ajustes**: escolha Ollama local ou Abacus, o modelo, o idioma do resumo e a
-   sua "área de pesquisa".
-9. **Em alta**: veja destaques e tópicos da semana na sua área.
-
-## Observações
-
-- PDFs e o banco ficam em `data/` dentro do projeto — nada sai do seu PC. Para o
-  resumo, o texto é enviado **somente** ao provedor escolhido (local se usar
-  Ollama).
-- Os filtros e ordenações ficaram mais completos; o dashboard usa dados reais da
-  sua biblioteca.
-- Download automático usa **apenas fontes abertas/legais**. Conteúdo com paywall
-  vai pela importação manual.
-- PDFs escaneados (sem camada de texto) não podem ser resumidos sem OCR.
-
-## Estrutura
+## Architecture & Project Structure
 
 ```
 quire/
 ├── app/
-│   ├── config.py      # ajustes e caminhos
-│   ├── db.py          # SQLite (artigos, categorias, filtros, ordenação)
-│   ├── sources.py     # busca unificada (16 fontes) + Unpaywall/Crossref/OpenAlex
-│   ├── downloader.py  # download de fontes abertas
-│   ├── summarizer.py  # extração de seções + resumo estruturado (Ollama/Abacus)
-│   ├── jobs.py        # tarefas em segundo plano
-│   └── api.py         # FastAPI
-├── web/               # interface (HTML/CSS/JS, sem build)
-├── data/              # SQLite + PDFs (criados em runtime, fora do git)
-└── run.sh / start.bat
+│   ├── config.py      # App settings, directory bindings, and provider configs
+│   ├── db.py          # SQLite schema, queries, filters, and indexing
+│   ├── sources.py     # 16 source query engines + Unpaywall/Crossref/OpenAlex APIs
+│   ├── downloader.py  # Open-access PDF download pipeline
+│   ├── summarizer.py  # Text extraction and structured LLM prompting
+│   ├── jobs.py        # Background asynchronous workers
+│   └── api.py         # FastAPI application endpoints and static mounting
+├── web/               # Frontend user interface (HTML5, Vanilla CSS, JS)
+├── tests/             # Unit and integration test suite (pytest)
+├── data/              # SQLite database, logs, and downloaded PDFs (runtime generated)
+├── run.sh             # Linux / WSL startup shell script
+├── start.bat          # Windows batch startup script
+└── ecosystem.config.js # Optional PM2 process configuration
+```
+
+---
+
+## Prerequisites
+
+- Python 3.10 or higher
+- Node.js & npm (if using PM2)
+- Ollama running locally (optional, for local summarization)
+- Abacus AI API key (optional, for cloud routing model `route-llm`)
+
+---
+
+## Installation & Setup
+
+1. Clone repository:
+```bash
+git clone <repository_url> quire
+cd quire
+```
+
+2. Create virtual environment and install dependencies:
+
+**Linux / WSL:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Windows (cmd/PowerShell):**
+```cmd
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+---
+
+## Running the Application
+
+### Method 1: Using PM2 (Production / Background Process)
+
+PM2 keeps the FastAPI server running as a persistent background daemon, handles automatic restarts, and captures log output.
+
+1. Install PM2 globally (requires Node.js):
+```bash
+npm install -g pm2
+```
+
+2. Ensure the virtual environment has dependencies installed:
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+```
+
+3. Start Quire with PM2:
+
+**Option A: Direct CLI command (Linux / WSL)**
+```bash
+pm2 start ".venv/bin/uvicorn app.api:app --host 0.0.0.0 --port 8000" --name quire
+```
+
+**Option A (Windows PowerShell / cmd)**
+```cmd
+pm2 start ".venv\Scripts\python.exe -m uvicorn app.api:app --host 0.0.0.0 --port 8000" --name quire
+```
+
+**Option B: Using an ecosystem file**
+Create `ecosystem.config.js` in the project root:
+```javascript
+module.exports = {
+  apps: [
+    {
+      name: "quire",
+      script: ".venv/bin/uvicorn",
+      args: "app.api:app --host 0.0.0.0 --port 8000",
+      interpreter: "none",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      },
+      error_file: "data/pm2-err.log",
+      out_file: "data/pm2-out.log",
+      time: true
+    }
+  ]
+};
+```
+Then launch:
+```bash
+pm2 start ecosystem.config.js
+```
+
+4. Useful PM2 commands:
+```bash
+pm2 status quire      # Check process status
+pm2 logs quire        # View real-time logs
+pm2 restart quire     # Restart server
+pm2 stop quire        # Stop server
+pm2 delete quire      # Remove from PM2 registry
+pm2 save              # Save PM2 process list across system reboots
+```
+
+### Method 2: Standard Shell Scripts
+
+**Linux / WSL:**
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+**Windows:**
+Double-click `start.bat` or run:
+```cmd
+start.bat
+```
+
+Once running, open your browser at:
+`http://localhost:8000`
+
+---
+
+## Running Tests
+
+Run the test suite with pytest:
+```bash
+.venv/bin/pytest tests/
 ```
