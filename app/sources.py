@@ -17,6 +17,12 @@ PUBMED_ESEARCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 PUBMED_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 DOAJ_API = "https://doaj.org/api/search/articles"
 EUROPEPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+PLOS_API = "https://api.plos.org/search"
+OSF_API = "https://api.osf.io/v2"
+OPENREVIEW_API = "https://api2.openreview.net/notes/search"
+FIGSHARE_API = "https://api.figshare.com/v2"
+DATACITE_API = "https://api.datacite.org/dois"
+HF_API = "https://huggingface.co/api/daily_papers"
 
 TIPO_ORIGEM_MAPA = {
     "article": "artigo_periodico",
@@ -31,7 +37,7 @@ TIPO_ORIGEM_MAPA = {
 
 
 def _ua():
-    return {"User-Agent": load_settings().get("user_agent", "leitor-artigos/1.0")}
+    return {"User-Agent": load_settings().get("user_agent", "Quire/2.0")}
 
 
 def _reconstruir_abstract(inverted):
@@ -183,6 +189,27 @@ def obter_crossref(doi):
             if l.get("content-type") in ("application/pdf", "text/plain") or "pdf" in (l.get("URL") or "").lower():
                 links.append(l.get("URL"))
         return {"links": links[:5]}
+    except Exception:
+        return {}
+
+
+def obter_openalex_doi(doi):
+    doi = doi.replace("https://doi.org/", "").strip("/")
+    if not doi:
+        return {}
+    try:
+        r = requests.get(f"{OPENALEX}/works/https://doi.org/{urllib.parse.quote(doi)}", params={"mailto": load_settings().get("email_unpaywall", "")}, headers=_ua(), timeout=15)
+        if r.status_code != 200:
+            return {}
+        w = r.json()
+        primary = w.get("primary_location") or {}
+        urls = []
+        for loc in w.get("locations", []) or []:
+            u = loc.get("pdf_url") or loc.get("landing_page_url")
+            if u and u not in urls:
+                urls.append(u)
+        bpdf = primary.get("pdf_url") or primary.get("landing_page_url")
+        return {"url_pdf": bpdf or "", "urls": urls[:5], "eh_oa": bool(w.get("open_access", {}).get("is_oa"))}
     except Exception:
         return {}
 
@@ -606,6 +633,297 @@ def buscar_openaire(query, limite=8):
     return resultados
 
 
+SLUG_PLOS = {
+    "PLOS ONE": "plosone",
+    "PLOS Biology": "plosbiology",
+    "PLOS Medicine": "plosmedicine",
+    "PLOS Computational Biology": "ploscompbiol",
+    "PLOS Genetics": "plosgenetics",
+    "PLOS Neglected Tropical Diseases": "plosntds",
+    "PLOS Pathogens": "plospathogens",
+    "PLOS Digital Health": "pdig",
+    "PLOS Climate": "pclm",
+    "PLOS Global Public Health": "pgph",
+    "PLOS Mental Health": "pmen",
+    "PLOS Water": "pwat",
+    "PLOS Sustainability and Transformation": "pstr",
+}
+
+
+def _texto_plos(campo):
+    if isinstance(campo, list):
+        return " ".join(str(x) for x in campo if x)
+    return str(campo or "")
+
+
+def _normalizar_plos(doc):
+    doi = doc.get("id") or ""
+    titulo = _texto_plos(doc.get("title") or "")
+    autores = [a for a in (doc.get("author") or []) if a][:15]
+    journal = doc.get("journal") or ""
+    slug = SLUG_PLOS.get(journal, "")
+    artigo_url = f"https://journals.plos.org/{slug}/article?id={doi}" if slug else ""
+    url_pdf = f"https://journals.plos.org/{slug}/article/file?id={doi}&type=printable" if slug else ""
+    tipo = "revisao" if "review" in str(doc.get("article_type") or "").lower() else "article"
+    data = doc.get("publication_date") or ""
+    return {
+        "id_fonte": f"plos:{doi}",
+        "fonte": "plos",
+        "doi": ("https://doi.org/" + doi) if doi else "",
+        "titulo": titulo or "Untitled",
+        "autores": autores,
+        "ano": int(data[:4]) if str(data)[:4].isdigit() else None,
+        "tipo": tipo,
+        "tipo_origem": "revisao" if tipo == "revisao" else "artigo_periodico",
+        "resumo": _texto_plos(doc.get("abstract") or "").strip(),
+        "classificacao": journal,
+        "url_pdf": url_pdf,
+        "urls_alternativas": [url_pdf] if url_pdf else [],
+        "url_pagina": artigo_url,
+        "acesso_aberto": True,
+        "idioma": "en",
+        "citacoes": 0,
+    }
+
+
+def buscar_plos(query, limite=10):
+    r = requests.get(PLOS_API, params={
+        "q": f'journal:PLoS* AND ("{query}")',
+        "fl": "id,title,abstract,author,journal,article_type,publication_date",
+        "wt": "json", "rows": limite,
+    }, headers=_ua(), timeout=15)
+    r.raise_for_status()
+    return [_normalizar_plos(d) for d in r.json().get("response", {}).get("docs", [])]
+
+
+def _normalizar_openreview(n):
+    apoio = n.get("content") or {}
+    def val(ch):
+        v = apoio.get(ch, {}) or {}
+        return v.get("value") if isinstance(v, dict) else v
+    titulo = val("title") or "Untitled"
+    autores = [a for a in (val("authors") or []) if a][:15]
+    html = val("html") or ""
+    doi = ""
+    if html.lower().startswith("https://doi.org/"):
+        doi = html
+    ident = n.get("forum") or n.get("id")
+    return {
+        "id_fonte": f"openreview:{ident}",
+        "fonte": "openreview",
+        "doi": doi,
+        "titulo": titulo.strip(),
+        "autores": autores,
+        "ano": 1970 + int((n.get("pdate") or 0) // 1000 // 86400 // 365.25) if n.get("pdate") else None,
+        "tipo": "preprint",
+        "tipo_origem": "preprint",
+        "resumo": (val("abstract") or "").strip(),
+        "classificacao": (val("venue") or "").strip(),
+        "url_pdf": f"https://openreview.net/pdf?id={ident}" if ident else "",
+        "urls_alternativas": [],
+        "url_pagina": f"https://openreview.net/forum?id={ident}" if ident else "",
+        "acesso_aberto": True,
+        "idioma": "en",
+        "citacoes": 0,
+    }
+
+
+def buscar_openreview(query, limite=8):
+    r = requests.get(OPENREVIEW_API, params={
+        "term": query, "content": "all", "limit": limite,
+    }, headers=_ua(), timeout=15)
+    r.raise_for_status()
+    norm = []
+    for n in r.json().get("notes", []) or []:
+        apoio = n.get("content") or {}
+        titulo = ((apoio.get("title") or {}).get("value") if isinstance(apoio.get("title"), dict) else apoio.get("title")) or ""
+        if not str(titulo).strip():
+            continue
+        norm.append(_normalizar_openreview(n))
+    return norm
+
+
+def _normalizar_osf(d):
+    at = d.get("attributes", {}) or {}
+    links = d.get("links", {}) or {}
+    doi = links.get("preprint_doi") or (("https://doi.org/" + at["doi"]) if at.get("doi") else "")
+    ident = d.get("id")
+    data = at.get("date_published") or ""
+    return {
+        "id_fonte": f"osf:{ident}",
+        "fonte": "osf",
+        "doi": doi or "",
+        "titulo": (at.get("title") or "Untitled").strip(),
+        "autores": [],
+        "ano": int(data[:4]) if str(data)[:4].isdigit() else None,
+        "tipo": "preprint",
+        "tipo_origem": "preprint",
+        "resumo": re.sub(r"<[^>]+>", "", at.get("description") or "")[:2000],
+        "classificacao": "",
+        "url_pdf": f"https://osf.io/download/{ident}/" if ident else "",
+        "urls_alternativas": [],
+        "url_pagina": links.get("html") or "",
+        "acesso_aberto": True,
+        "idioma": "en",
+        "citacoes": 0,
+    }
+
+
+def _autores_osf(ident):
+    try:
+        r = requests.get(f"{OSF_API}/preprints/{ident}/contributors/", params={"page[size]": 30, "embed": "users"}, headers=_ua(), timeout=8)
+        r.raise_for_status()
+        nomes = []
+        for e in r.json().get("data", []) or []:
+            u = (e.get("embeds") or {}).get("users", {}).get("data", {}).get("attributes", {}) or {}
+            nome = u.get("full_name") or ""
+            if nome and u.get("bibliographic", True):
+                nomes.append(nome)
+        return nomes[:15]
+    except Exception:
+        return []
+
+
+def buscar_osf(query, limite=6):
+    r = requests.get(f"{OSF_API}/preprints/", params={
+        "filter[title]": query, "page[size]": limite,
+    }, headers=_ua(), timeout=15)
+    r.raise_for_status()
+    itens = r.json().get("data", []) or []
+    resultados = [_normalizar_osf(d) for d in itens]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        autores = {pool.submit(_autores_osf, d.get("id")): i for i, d in enumerate(itens)}
+        for fut in as_completed(autores, timeout=10):
+            try:
+                resultados[autores[fut]]["autores"] = fut.result()
+            except Exception:
+                pass
+    return resultados
+
+
+def buscar_figshare(query, limite=8):
+    r = requests.get(f"{FIGSHARE_API}/articles", params={
+        "search_for": query, "page_size": limite,
+    }, headers=_ua(), timeout=18)
+    r.raise_for_status()
+    bruto = r.json()
+    itens = bruto.get("data", []) if isinstance(bruto, dict) else bruto
+    mapa_tipo = {
+        "journal contribution": "artigo_periodico",
+        "paper": "artigo_periodico",
+        "preprint": "preprint",
+        "poster": "anais_congresso",
+        "presentation": "anais_congresso",
+        "conference contribution": "anais_congresso",
+        "thesis": "tese_dissertacao",
+        "book contribution": "capitulo_livro",
+        "report": "relatorio",
+        "dataset": "livro",
+    }
+    saida = []
+    for it in itens or []:
+        titulo = (it.get("title") or "").strip()
+        if not titulo:
+            continue
+        tipo_nome = (it.get("defined_type_name") or "").lower()
+        doi = it.get("resource_doi") or ""
+        pag = it.get("url_public_html") or it.get("url") or ""
+        saida.append({
+            "id_fonte": f"figshare:{it.get('id')}",
+            "fonte": "figshare",
+            "doi": doi,
+            "titulo": titulo,
+            "autores": [],
+            "ano": (it.get("published_date") or "")[:4] or None,
+            "tipo": "article",
+            "tipo_origem": mapa_tipo.get(tipo_nome, "artigo_periodico"),
+            "resumo": "",
+            "classificacao": (it.get("defined_type_name") or "Figshare") + (" / Figshare" if tipo_nome == "dataset" else ""),
+            "url_pdf": "",
+            "urls_alternativas": [],
+            "url_pagina": pag,
+            "acesso_aberto": True,
+            "idioma": "",
+            "citacoes": 0,
+        })
+    return saida
+
+
+def buscar_datacite(query, limite=8):
+    r = requests.get(DATACITE_API, params={
+        "query": query, "resource-type-id": "text", "page[size]": limite,
+    }, headers=_ua(), timeout=15)
+    r.raise_for_status()
+    mapa_tipo = {
+        "Report": "relatorio", "Thesis": "tese_dissertacao", "Dissertation": "tese_dissertacao",
+        "Preprint": "preprint", "Book": "livro", "Dataset": "livro",
+    }
+    saida = []
+    for d in r.json().get("data", []) or []:
+        a = d.get("attributes") or {}
+        titulo = (a.get("titles") or [{}])[0].get("title") or ""
+        if not titulo:
+            continue
+        tipo_nome = a.get("types", {}).get("resourceTypeGeneral") or "Text"
+        autores = [c.get("name", "") for c in (a.get("creators") or [])]
+        sujeitos = [s.get("subject", "") for s in (a.get("subjects") or []) if s.get("subject")][:6]
+        saida.append({
+            "id_fonte": f"datacite:{a.get('doi')}",
+            "fonte": "datacite",
+            "doi": a.get("doi") or "",
+            "titulo": re.sub(r"\s+", " ", titulo).strip(),
+            "autores": autores[:15],
+            "ano": a.get("publicationYear"),
+            "tipo": "article",
+            "tipo_origem": mapa_tipo.get(tipo_nome, "artigo_periodico"),
+            "resumo": "",
+            "classificacao": f"{tipo_nome} / {', '.join(sujeitos)}".strip(" /")[:220],
+            "url_pdf": "",
+            "urls_alternativas": [],
+            "url_pagina": a.get("url") or "",
+            "acesso_aberto": True,
+            "idioma": a.get("language") or "",
+            "citacoes": 0,
+        })
+    return saida
+
+
+def destaques_diarios(limite=10):
+    try:
+        r = requests.get(HF_API, headers=_ua(), timeout=15)
+        if r.status_code != 200:
+            return []
+        saida = []
+        for p in (r.json() or [])[:limite]:
+            paper = p.get("paper") or {}
+            num = str(paper.get("id") or "")
+            titulo = (paper.get("title") or p.get("title") or "").strip()
+            if not titulo or not num:
+                continue
+            autores = [a.get("name", "") for a in (paper.get("authors") or []) if a.get("name")]
+            saida.append({
+                "id_fonte": f"huggingface:{num}",
+                "fonte": "huggingface",
+                "doi": "",
+                "titulo": re.sub(r"\s+", " ", titulo),
+                "autores": autores[:15],
+                "ano": (paper.get("publishedAt") or p.get("publishedAt") or "")[:4] or None,
+                "tipo": "preprint",
+                "tipo_origem": "preprint",
+                "resumo": re.sub(r"\s+", " ", p.get("summary") or "").strip(),
+                "classificacao": "Hugging Face Daily / Machine Learning",
+                "url_pdf": f"https://arxiv.org/pdf/{num}",
+                "urls_alternativas": [],
+                "url_pagina": f"https://huggingface.co/papers/{num}",
+                "acesso_aberto": True,
+                "idioma": "en",
+                "citacoes": 0,
+            })
+        return saida
+    except Exception:
+        return []
+
+
 def _ordenar_resultados(resultados, ordenacao):
     if ordenacao == "ano_novo":
         return sorted(resultados, key=lambda r: (r.get("ano") is None, -(r.get("ano") or 0)))
@@ -618,7 +936,7 @@ def _ordenar_resultados(resultados, ordenacao):
     return resultados
 
 
-def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None, fontes=None, idioma=None, acesso_aberto=None, ordenacao=None):
+def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None, fontes=None, idioma=None, acesso_aberto=None, ordenacao=None, autor=None, assunto=None, citacoes_min=None, deduplicar=True):
     tipo_map_reverso = {v: k for k, v in TIPO_ORIGEM_MAPA.items()}
     tipo_o = tipo_map_reverso.get(tipo_origem) if tipo_origem else None
     fontes = set(fontes) if fontes else None
@@ -642,6 +960,9 @@ def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None, fontes=None
             (buscar_hal, {"limite": 6}, "hal"),
             (buscar_zenodo, {"limite": 6}, "zenodo"),
             (buscar_openaire, {"limite": 6}, "openaire"),
+            (buscar_plos, {"limite": 8}, "plos"),
+            (buscar_figshare, {"limite": 8}, "figshare"),
+            (buscar_datacite, {"limite": 6}, "datacite"),
         ]
         for fn, kw, nome in pares_gerais:
             if not fontes or nome in fontes:
@@ -652,13 +973,15 @@ def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None, fontes=None
             (buscar_semanticscholar, {"limite": 6}, "semanticscholar"),
             (buscar_hal, {"limite": 6}, "hal"),
             (buscar_openaire, {"limite": 6}, "openaire"),
+            (buscar_openreview, {"limite": 6}, "openreview"),
+            (buscar_osf, {"limite": 6}, "osf"),
         ]
         for fn, kw, nome in pares_preprint:
             if not fontes or nome in fontes:
                 tarefas.append((nome, lambda fn=fn, kw=kw: rodar_alvo(fn, **kw)))
     resultados = []
     vistos_tasks = {}
-    with ThreadPoolExecutor(max_workers=10) as pool:
+    with ThreadPoolExecutor(max_workers=14) as pool:
         futures = {pool.submit(f): nome for nome, f in tarefas}
         vistos_tasks = futures
         for fut in as_completed(futures, timeout=22):
@@ -667,6 +990,8 @@ def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None, fontes=None
                 resultados.extend(lote)
             except Exception:
                 pass
+    if tipo_origem:
+        resultados = [r for r in resultados if r.get("tipo_origem") == tipo_origem]
     if ano_min or ano_max:
         antes = len(resultados)
         resultados = [
@@ -678,21 +1003,160 @@ def buscar_tudo(query, tipo_origem=None, ano_min=None, ano_max=None, fontes=None
         resultados = [r for r in resultados if not r.get("idioma") or r["idioma"] == idioma]
     if acesso_aberto:
         resultados = [r for r in resultados if r.get("acesso_aberto")]
+    if autor:
+        termo_autor = autor.casefold().strip()
+        def nomes_autores(registro):
+            nomes = registro.get("autores") or []
+            if isinstance(nomes, str):
+                try:
+                    import json
+                    nomes = json.loads(nomes)
+                except (TypeError, ValueError):
+                    nomes = [nomes]
+            return nomes if isinstance(nomes, list) else [str(nomes)]
+        resultados = [r for r in resultados if any(termo_autor in str(nome).casefold() for nome in nomes_autores(r))]
+    if assunto:
+        termos_assunto = [t.casefold().strip() for t in assunto.split(",") if t.strip()]
+        resultados = [
+            r for r in resultados
+            if all(termo in " ".join(str(r.get(campo) or "") for campo in ("titulo", "classificacao", "resumo")).casefold() for termo in termos_assunto)
+        ]
+    if citacoes_min is not None:
+        minimo = int(citacoes_min)
+        def tem_citacoes_suficientes(registro):
+            try:
+                return int(registro.get("citacoes") or 0) >= minimo
+            except (TypeError, ValueError):
+                return False
+        resultados = [r for r in resultados if tem_citacoes_suficientes(r)]
+    if deduplicar:
+        vistos = {}
+        for r in resultados:
+            doi = (r.get("doi") or "").casefold().strip()
+            doi = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", doi)
+            titulo_normalizado = re.sub(r"\W+", " ", (r.get("titulo") or "").casefold()).strip()
+            chave = doi or titulo_normalizado or r.get("id_fonte", "")
+            if chave in vistos:
+                antigo = vistos[chave]
+                urls_existentes = antigo.get("urls_alternativas") or []
+                extras = [u for u in (r.get("urls_alternativas") or []) if u not in urls_existentes]
+                antigo["urls_alternativas"] = urls_existentes + extras
+                for campo in ("url_pdf", "acesso_aberto", "idioma", "citacoes", "resumo", "classificacao"):
+                    if not antigo.get(campo) and r.get(campo):
+                        antigo[campo] = r[campo]
+                continue
+            vistos[chave] = r
+        resultados = list(vistos.values())
+    return _ordenar_resultados(resultados, ordenacao)
+
+
+def area_pesquisa_termos():
+    bruto = (load_settings().get("area_pesquisa") or "").strip()
+    termos = [t.strip() for t in bruto.split(",") if t.strip()]
+    return termos or [t.strip() for t in _termos_padrao.split(",")]
+
+
+_termos_padrao = "post-quantum cryptography, quantum computing, cybersecurity, machine learning, deep learning, reinforcement learning, internet of things, smart environments, self-adaptive systems, high performance computing, anomaly detection"
+
+
+def destaques(dias=7, limite=25):
+    from datetime import date, timedelta
+
+    from .config import load_settings as _load
+
+    desde = (date.today() - timedelta(days=int(dias))).isoformat()
+    ano_min = int(desde[:4])
+    termos = area_pesquisa_termos()[:6]
+    mailto = _load().get("email_unpaywall", "")
+
+    def consultar(termo):
+        try:
+            params = {
+                "search": termo,
+                "per-page": 8,
+                "mailto": mailto,
+                "filter": f"from_publication_date:{desde}",
+            }
+            r = requests.get(f"{OPENALEX}/works", params=params, headers=_ua(), timeout=15)
+            r.raise_for_status()
+            return termo, [_normalizar_openalex(w) for w in r.json().get("results", [])]
+        except Exception:
+            return termo, []
+
+    por_termo = {}
+    with ThreadPoolExecutor(max_workers=min(len(termos), 6)) as pool:
+        futures = {pool.submit(consultar, t): t for t in termos}
+        for fut in as_completed(futures, timeout=28):
+            termo, normas = fut.result()
+            por_termo[termo] = normas
+
     vistos = {}
-    for r in resultados:
-        chave = (r.get("doi") or r.get("titulo", "").lower()[:80]) or r.get("id_fonte", "")
-        if chave in vistos:
-            antigo = vistos[chave]
-            extras = [u for u in r.get("urls_alternativas", []) if u not in antigo.get("urls_alternativas", [])]
-            antigo["urls_alternativas"] += extras
-            if not antigo.get("url_pdf") and r.get("url_pdf"):
-                antigo["url_pdf"] = r["url_pdf"]
-            if not antigo.get("acesso_aberto") and r.get("acesso_aberto"):
-                antigo["acesso_aberto"] = True
-            if not antigo.get("idioma") and r.get("idioma"):
-                antigo["idioma"] = r["idioma"]
-            if not antigo.get("citacoes") and r.get("citacoes"):
-                antigo["citacoes"] = r["citacoes"]
+    for termo, normas in por_termo.items():
+        for r in normas:
+            if not r.get("ano") or r.get("ano") < ano_min:
+                continue
+            chave = (r.get("doi") or r.get("titulo", "").lower()[:80]) or r.get("id_fonte", "")
+            if chave not in vistos:
+                vistos[chave] = r
+    obras = sorted(vistos.values(), key=lambda x: x.get("citacoes") or 0, reverse=True)[:limite]
+    topicos = []
+    for termo, normas in por_termo.items():
+        if not normas:
             continue
-        vistos[chave] = r
-    return _ordenar_resultados(list(vistos.values()), ordenacao)
+        topicos.append({
+            "termo": termo,
+            "trabalhos": len(normas),
+            "citacoes": sum(o.get("citacoes") or 0 for o in normas),
+            "exemplos": [o["titulo"][:90] for o in normas[:3]],
+        })
+    topicos.sort(key=lambda t: (t["trabalhos"], t["citacoes"]), reverse=True)
+    return {
+        "periodo_dias": int(dias),
+        "desde": desde,
+        "termos": termos,
+        "destaques": obras,
+        "topicos": topicos,
+        "diarios": destaques_diarios(10),
+    }
+
+
+def metricas(doi="", titulo=""):
+    mailto = load_settings().get("email_unpaywall", "")
+    alvos = []
+    if doi:
+        alvos.append(("doi", f"{OPENALEX}/works/{urllib.parse.quote(str(doi).strip())}", None))
+    if titulo:
+        alvos.append(("titulo", f"{OPENALEX}/works", {"search": titulo[:200], "per-page": 6, "mailto": mailto}))
+    for forma, url, params in alvos:
+        try:
+            r = requests.get(url, params=params, headers=_ua(), timeout=12)
+            if r.status_code != 200:
+                continue
+            w = r.json()
+            if forma == "titulo":
+                candidatos = w.get("results") or []
+                w = next((x for x in candidatos), None)
+                if not w or not w.get("id"):
+                    continue
+            elif not w.get("id"):
+                continue
+            por_ano = [{"ano": c.get("year"), "citacoes": c.get("cited_by_count")}
+                       for c in (w.get("counts_by_year") or []) if c.get("year")]
+            conceitos = [c.get("display_name") for c in (w.get("topics") or [])[:4]]
+            if not conceitos:
+                conceitos = [c.get("display_name") for c in (w.get("concepts") or [])[:4]]
+            return {
+                "encontrado": True,
+                "forma": forma,
+                "titulo": w.get("title"),
+                "doi": (w.get("doi") or "").replace("https://doi.org/", ""),
+                "citacoes": int(w.get("cited_by_count") or 0),
+                "referencias": int(w.get("referenced_works_count") or 0),
+                "por_ano": por_ano,
+                "conceitos": [c for c in conceitos if c],
+                "url_openalex": w.get("id"),
+                "acesso_aberto": bool((w.get("open_access") or {}).get("is_oa")),
+            }
+        except Exception:
+            continue
+    return {"encontrado": False}

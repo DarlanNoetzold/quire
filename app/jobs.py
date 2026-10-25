@@ -1,3 +1,4 @@
+import logging
 import threading
 
 from . import db
@@ -38,14 +39,19 @@ def iniciar_download(artigo_id):
 
     def rodar():
         _registrar("download", artigo_id)
+        sucesso = False
         try:
             resultado = downloader.baixar_pdf(artigo)
             if not resultado["ok"] and resultado.get("motivo") == "sem_url":
                 db.update_artigo(artigo_id, {"pdf_status": "nao_disponivel"})
+            else:
+                sucesso = bool(resultado.get("ok"))
         except Exception as e:
             db.update_artigo(artigo_id, {"pdf_status": "falha", "pdf_mensagem": f"{type(e).__name__}: {str(e)[:200]}"})
         finally:
             _finalizar("download", artigo_id)
+        if sucesso:
+            iniciar_resumo(artigo_id)
 
     threading.Thread(target=rodar, daemon=True).start()
     return True
@@ -63,6 +69,9 @@ def iniciar_resumo(artigo_id):
         _registrar("resumo", artigo_id)
         try:
             summarizer.resumir_artigo(artigo, progresso=None)
+        except Exception as e:
+            logging.error("Resumo falhou no artigo %s: %s", artigo_id, e, exc_info=True)
+            db.update_artigo(artigo_id, {"resumo_status": "falha", "resumo_mensagem": f"{type(e).__name__}: {str(e)[:200]}"})
         finally:
             _finalizar("resumo", artigo_id)
 

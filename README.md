@@ -1,75 +1,124 @@
-# Paper Reader
+# Quire 📚
 
-Local app that unifies your scientific paper reading workflow: **search, download PDFs, generate structured summaries, and organize by classification**. Everything runs on your own computer.
+**Sua biblioteca de pesquisa, local e privada.**
 
-## Features
+O Quire unifica o fluxo de leitura científica num único app que roda 100% no seu
+computador: **busca em 16+ fontes**, **download legal de PDFs abertos**, **resumos
+estruturados** gerados por IA local, **leitor de PDF com progresso**, **notas e
+tags** por artigo, **gráficos estatísticos** e **exportação** para BibTeX,
+Markdown, JSON ou backup completo.
 
-- **Unified search** by keywords with filters for source type (journal article, preprint, review, book chapter...), year range, **which sources to query** (multi-select), language, open access only, and **result sorting** (relevance, newest/oldest, most cited, title), across **11 sources**:
-  - [OpenAlex](https://openalex.org) — global catalog (journals, repositories, automatic field classification)
-  - [arXiv](https://arxiv.org) — preprints
-  - [PubMed](https://pubmed.ncbi.nlm.nih.gov) — biomedical literature (MeSH classification)
-  - [Crossref](https://www.crossref.org) — DOI metadata with direct PDF links
-  - [DOAJ](https://doaj.org) — open-access journals
-  - [Europe PMC](https://europepmc.org) — life science literature, including preprints
-  - [Semantic Scholar](https://www.semanticscholar.org) — when its rate limit allows (free tier without key)
-  - [dblp](https://dblp.org) — computer science (journals and conferences)
-  - [HAL](https://hal.science) — French/international repository with direct PDFs
-  - [Zenodo](https://zenodo.org) — open publications with direct PDFs
-  - [OpenAIRE](https://www.openaire.eu) — European funded research
-- **Automatic PDF download from open sources**: OpenAlex → [Unpaywall](https://unpaywall.org) → Crossref, in order. Articles without an automatic open version can be **imported manually** (drag-and-drop).
-- **Structured summary** that extracts only what you ask for: **Objectives, Methodology, Results, Contributions and Limitations** (not a generic summary).
-- **Library organized by classification**: category suggested automatically (OpenAlex concepts) or set by you, filtered by category, source type, source, PDF status, summary status, open access, reading status (not read/reading/read), favorites, language, minimum citations, author, year range and date added, with **11 sort orders** (date added, title, year, classification, source, citations, favorites, author).
+## Funcionalidades
 
-## Requirements
+### 🔍 Busca unificada (16+ fontes)
+Busca por palavras-chave com filtros: tipo de artigo, intervalo de anos, fontes
+(multi-seleção), idioma, só acesso aberto e ordenação (relevância, mais novos/
+antigos, mais citados, título).
+Fontes: **OpenAlex, arXiv, PubMed, Crossref, DOAJ, Europe PMC, Semantic Scholar,
+dblp, HAL, Zenodo, OpenAIRE, PLOS, OpenReview, OSF, Figshare, DataCite**.
 
-- Python 3.10+ (WSL or Windows)
-- [Ollama](https://ollama.com) installed and running (local model ~2 GB, pulled automatically on the first summary)
-- Optional: Abacus AI API key (https://routellm.abacus.ai/v1, model `route-llm`) to use the online provider
+### ⚡ Em alta
+Destaques dos últimos 7/30/90 dias e **tópicos em alta na sua área** (lista de
+palavras-chave configurável), além dos papers do dia da **Hugging Face Daily
+Papers**. Tudo adicionável à biblioteca com um clique.
 
-## How to run
+### 📥 Download legal de PDFs
+Resolvedores de DOI (OpenAlex → Unpaywall → Crossref) + o próprio link do PDF do
+artigo. Sem versão aberta? **Importe manualmente** (arraste e solte) — o app tenta
+preencher título, autores, ano e classificação pelo DOI encontrado no PDF.
 
-**On WSL/Linux:**
+### ✨ Resumos estruturados
+Gera **apenas o que você pedir**: objetivos, metodologia, resultados,
+contribuições, limitações, novidade, trabalhos relacionados/futuros e seções
+personalizadas — com idioma selecionável (inglês/português). Roda localmente
+via **Ollama** (seus PDFs nunca saem do PC) ou via **Abacus AI** (opcional).
 
-```bash
-./run.sh
+### 📖 Leitor com progresso e notas
+- **Leitor de PDF embutido** com barra de progresso por página; o progresso é
+  salvo automaticamente e aparece em cada card da biblioteca.
+- **Anotações editáveis** por artigo (notas de leitura).
+- **Tags** por artigo, filtráveis e clicáveis.
+- **Marcar como lido** direto no leitor.
+
+### 📚 Biblioteca organizada
+- Classificação com **categoria e cor editáveis** (renomear, mudar cor, excluir).
+- Filtros: categoria, tipo, fonte, status do PDF, resumo, leitura, favoritos,
+  idioma, mínimo de citações, autor, ano e data de adição.
+- **12 opções de ordenação**, incluindo "em leitura primeiro" e "última leitura".
+- **Dashboard de estatísticas** com gráficos: artigos por ano, distribuição por
+  fonte e status de leitura.
+- **Stats rápidos** (total, com PDF, resumidos, favoritos, não lidos, citações).
+
+### 📤 Exportação e dados
+- **BibTeX**, **JSON** e **Markdown** da biblioteca inteira ou de um único artigo
+  (resumo + notas + tags).
+- **Backup completo (ZIP)** do banco e de todos os PDFs.
+- **Resumir em lote**: um clique agenda resumo para todos os artigos com PDF que
+  ainda não têm.
+
+### 🛡️ Proteção e gestão de PDFs
+- Proteção contra duplicatas (mesmo DOI/título rejeitado com aviso).
+- Rebaixar, anexar ou **excluir só o PDF** (mantendo o registro).
+- DOI mostrado quando não há PDF, com link ao editor e botão copiar.
+
+### 📊 Métricas por artigo
+No detalhe, "Obter métricas" busca citações totais, referências, barras de
+citação por ano e conceitos de pesquisa no OpenAlex.
+
+## Requisitos
+
+- Python 3.10+ (WSL ou Windows)
+- [Ollama](https://ollama.com) instalado e rodando (modelo local ~2 GB, baixado
+  automaticamente no primeiro resumo)
+- Opcional: chave da API Abacus AI (https://routellm.abacus.ai/v1, modelo `route-llm`)
+
+## Como rodar
+
+**No Windows:** `start.bat`
+
+**No WSL/Linux:** `./run.sh`
+
+Abra <http://localhost:8000>.
+
+## Como usar
+
+1. **Buscar**: digite palavras-chave, aplique filtros e clique em Buscar.
+2. **Adicionar**: na busca, use "＋ Adicionar" para mandar para a biblioteca.
+3. **Baixar**: na biblioteca, "Baixar PDF" tenta as fontes abertas em ordem.
+4. **Ler**: com PDF, clique "📖 Ler" — o leitor abre e o progresso é salvo.
+5. **Resumir**: clique "✨ Resumir"; use "⚡ Resumir todos" na biblioteca para o
+   lote inteiro.
+6. **Anotar e tagear**: em "Detalhes", edite notas e tags e salve.
+7. **Organizar**: ajuste classificação/categoria em Detalhes, ou edite cores no
+   painel de Categorias em Ajustes.
+8. **Ajustes**: escolha Ollama local ou Abacus, o modelo, o idioma do resumo e a
+   sua "área de pesquisa".
+9. **Em alta**: veja destaques e tópicos da semana na sua área.
+
+## Observações
+
+- PDFs e o banco ficam em `data/` dentro do projeto — nada sai do seu PC. Para o
+  resumo, o texto é enviado **somente** ao provedor escolhido (local se usar
+  Ollama).
+- Os filtros e ordenações ficaram mais completos; o dashboard usa dados reais da
+  sua biblioteca.
+- Download automático usa **apenas fontes abertas/legais**. Conteúdo com paywall
+  vai pela importação manual.
+- PDFs escaneados (sem camada de texto) não podem ser resumidos sem OCR.
+
+## Estrutura
+
 ```
-
-**On Windows:**
-
-```
-start.bat
-```
-
-Open http://localhost:8000 in your browser.
-
-## How to use
-
-1. **Search**: type keywords, apply filters and click "Search". Add articles to the library with "＋".
-2. **Download**: in the library, click "Download PDF" — the app tries the open sources in order. If no open version exists, the message explains it and you use the **Import** tab (the PDF stays only on your PC).
-3. **Summarize**: click "Summarize" — the text is extracted, the article sections (abstract, methodology, results, conclusion) are located and sent to the model. The first use pulls the local model automatically.
-4. **Organize**: in the article details, adjust classification and category. Filter the library by any criterion and choose a sort order.
-5. **Settings**: switch between local Ollama (default) and Abacus AI, choose the model and manage the API key.
-
-## Notes
-
-- PDFs and the database live in `data/` inside the project — nothing leaves your machine. Articles are sent **only** to the chosen provider (local if you use Ollama) to generate the summary.
-- The summary uses a **focused excerpt** of the article (abstract + main sections, ~14k chars), which keeps the light model fast and accurate.
-- Automatic download uses **only open/legal sources** (OpenAlex, arXiv, Unpaywall, Crossref). Paywalled content goes through manual import.
-- Scanned PDFs (no text layer) cannot be summarized without OCR.
-
-## Structure
-
-```
-leitor-artigos/
+quire/
 ├── app/
-│   ├── config.py      # settings and paths
-│   ├── db.py          # SQLite (articles, categories, filters, sorting)
-│   ├── sources.py     # unified search (7 sources) + Unpaywall/Crossref lookup
-│   ├── downloader.py  # download from open sources
-│   ├── summarizer.py  # section extraction + structured summary (Ollama/Abacus)
-│   ├── jobs.py        # background tasks
+│   ├── config.py      # ajustes e caminhos
+│   ├── db.py          # SQLite (artigos, categorias, filtros, ordenação)
+│   ├── sources.py     # busca unificada (16 fontes) + Unpaywall/Crossref/OpenAlex
+│   ├── downloader.py  # download de fontes abertas
+│   ├── summarizer.py  # extração de seções + resumo estruturado (Ollama/Abacus)
+│   ├── jobs.py        # tarefas em segundo plano
 │   └── api.py         # FastAPI
-├── web/               # interface (HTML/CSS/JS, no build)
-├── data/              # SQLite + PDFs (created at runtime, out of git)
+├── web/               # interface (HTML/CSS/JS, sem build)
+├── data/              # SQLite + PDFs (criados em runtime, fora do git)
 └── run.sh / start.bat
 ```

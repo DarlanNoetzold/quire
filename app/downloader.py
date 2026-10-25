@@ -14,7 +14,7 @@ TAMANHO_MAX = 200 * 1024 * 1024
 def _sess():
     s = requests.Session()
     s.headers.update({
-        "User-Agent": load_settings().get("user_agent", "leitor-artigos/1.0"),
+        "User-Agent": load_settings().get("user_agent", "Quire/2.0"),
         "Accept": "application/pdf, application/x-pdf, application/octet-stream, */*",
     })
     return s
@@ -44,6 +44,11 @@ def candidatos_url(artigo):
             urls.append(u)
         cr = sources.obter_crossref(artigo["doi"])
         for u in cr.get("links", []):
+            urls.append(u)
+        oa = sources.obter_openalex_doi(artigo["doi"])
+        if oa.get("url_pdf"):
+            urls.insert(0, oa["url_pdf"])
+        for u in oa.get("urls", []):
             urls.append(u)
     vistos = []
     for u in urls:

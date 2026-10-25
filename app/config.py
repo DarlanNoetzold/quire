@@ -15,9 +15,28 @@ DEFAULT_SETTINGS = {
     "abacus_model": "route-llm",
     "abacus_api_key": "",
     "max_chars": 45000,
-    "email_unpaywall": "leitor-artigos@exemplo.com",
-    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "resumo_campos": ["objectives", "methodology", "results", "contributions", "limitations"],
+    "resumo_campos_personalizados": [],
+    "sumario_idioma": "English",
+    "area_pesquisa": "post-quantum cryptography, quantum computing, cybersecurity, machine learning, deep learning, reinforcement learning, internet of things, smart environments, self-adaptive systems, high performance computing, anomaly detection",
+    "email_unpaywall": "quire@example.com",
+    "user_agent": "Quire/2.0 (https://github.com/darlan-noetzold/quire; local research library)",
 }
+
+CATALOGO_CAMPOS = [
+    {"id": "objectives", "rotulo": "Objectives", "instrucao": "the problem addressed and the goals of the work."},
+    {"id": "motivation", "rotulo": "Motivation", "instrucao": "why the work matters and what real-world or scientific problem it addresses."},
+    {"id": "methodology", "rotulo": "Methodology", "instrucao": "study design, materials/methods, data, techniques and metrics used."},
+    {"id": "results", "rotulo": "Results", "instrucao": "main findings, with key numbers when present."},
+    {"id": "contributions", "rotulo": "Contributions", "instrucao": "novelty, implications and what the work adds to the field."},
+    {"id": "limitations", "rotulo": "Limitations", "instrucao": "stated or evident restrictions; if none, use \"Not identified in the text\"."},
+    {"id": "novelty", "rotulo": "Novelty", "instrucao": "what is genuinely new compared with prior work."},
+    {"id": "related_work", "rotulo": "Related work", "instrucao": "prior work the article builds on or positions itself against."},
+    {"id": "future_work", "rotulo": "Future work", "instrucao": "next steps or open questions mentioned by the authors."},
+    {"id": "experimental_setup", "rotulo": "Experimental setup", "instrucao": "datasets, environments, parameters and evaluation protocol used."},
+]
+
+DEFAULT_CAMPOS = ["objectives", "methodology", "results", "contributions", "limitations"]
 
 
 def ensure_dirs():

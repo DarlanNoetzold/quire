@@ -58,6 +58,10 @@ def init_db():
             favorito INTEGER DEFAULT 0,
             idioma TEXT,
             citacoes INTEGER DEFAULT 0,
+            tags TEXT DEFAULT '[]',
+            progresso_leitura INTEGER DEFAULT 0,
+            paginas_total INTEGER DEFAULT 0,
+            ultima_leitura TEXT,
             criado_em TEXT
         )
         """
@@ -81,6 +85,14 @@ def _migrar(conn):
         conn.execute("ALTER TABLE artigos ADD COLUMN idioma TEXT")
     if "citacoes" not in cols:
         conn.execute("ALTER TABLE artigos ADD COLUMN citacoes INTEGER DEFAULT 0")
+    if "tags" not in cols:
+        conn.execute("ALTER TABLE artigos ADD COLUMN tags TEXT DEFAULT '[]'")
+    if "progresso_leitura" not in cols:
+        conn.execute("ALTER TABLE artigos ADD COLUMN progresso_leitura INTEGER DEFAULT 0")
+    if "paginas_total" not in cols:
+        conn.execute("ALTER TABLE artigos ADD COLUMN paginas_total INTEGER DEFAULT 0")
+    if "ultima_leitura" not in cols:
+        conn.execute("ALTER TABLE artigos ADD COLUMN ultima_leitura TEXT")
 
 
 def add_categoria(nome, cor="#4f8cff"):
@@ -101,6 +113,13 @@ def list_categorias():
     rows = conn.execute("SELECT * FROM categorias ORDER BY nome").fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def get_categoria(cat_id):
+    conn = _conn()
+    row = conn.execute("SELECT * FROM categorias WHERE id = ?", (cat_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 
 def delete_categoria(cat_id):
@@ -146,6 +165,8 @@ ORDENACOES = {
     "favoritos": "a.favorito DESC, a.criado_em DESC",
     "idioma": "a.idioma COLLATE NOCASE ASC",
     "autor": "a.autores COLLATE NOCASE ASC",
+    "lendo": "a.read_status = 'lendo' DESC, a.ultima_leitura DESC",
+    "ult_leitura": "COALESCE(a.ultima_leitura, '') DESC",
 }
 
 
@@ -205,6 +226,20 @@ def list_artigos(filtros=None):
         sql += " AND (a.titulo LIKE ? OR a.classificacao LIKE ? OR a.autores LIKE ?)"
         termo = f"%{filtros['busca']}%"
         params += [termo, termo, termo]
+    if filtros.get("tag"):
+        sql += " AND a.tags LIKE ?"
+        params.append(f"%{filtros['tag']}%")
+    if filtros.get("notas"):
+        sql += " AND a.notas LIKE ?"
+        params.append(f"%{filtros['notas']}%")
+    if filtros.get("lendo"):
+        sql += " AND a.read_status = 'lendo'"
+    if filtros.get("ultima_leitura_dias"):
+        from datetime import datetime, timedelta, timezone
+
+        limite = datetime.now(timezone.utc) - timedelta(days=int(filtros["ultima_leitura_dias"]))
+        sql += " AND a.ultima_leitura >= ?"
+        params.append(limite.isoformat(timespec="seconds"))
     sql += " ORDER BY " + ORDENACOES.get(filtros.get("ordenacao"), ORDENACOES["recente"])
     conn = _conn()
     rows = conn.execute(sql, params).fetchall()
@@ -230,6 +265,46 @@ def delete_artigo(artigo_id):
     conn.close()
 
 
+def estatisticas():
+    conn = _conn()
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS total,
+               SUM(CASE WHEN pdf_status = 'baixado' THEN 1 ELSE 0 END) AS com_pdf,
+               SUM(CASE WHEN resumo_status = 'pronto' THEN 1 ELSE 0 END) AS com_resumo,
+               SUM(CASE WHEN favorito = 1 THEN 1 ELSE 0 END) AS favoritos,
+               SUM(CASE WHEN read_status = 'nao_lido' THEN 1 ELSE 0 END) AS nao_lidos,
+               SUM(COALESCE(citacoes, 0)) AS citacoes_total
+        FROM artigos
+        """
+    ).fetchone()
+    conn.close()
+    saida = dict(row) if row else {}
+    for chave in ("com_pdf", "com_resumo", "favoritos", "nao_lidos", "citacoes_total"):
+        saida[chave] = int(saida.get(chave) or 0)
+    saida["total"] = int(saida.get("total") or 0)
+    return saida
+
+
+def encontrar_duplicado(doi=None, titulo=None):
+    if not doi and not titulo:
+        return None
+    conn = _conn()
+    if doi:
+        doi_limpo = doi.replace("https://doi.org/", "").strip("/")
+        row = conn.execute("SELECT id FROM artigos WHERE doi LIKE ?", (f"%{doi_limpo}%",)).fetchone()
+        if row:
+            conn.close()
+            return row["id"]
+    if titulo:
+        row = conn.execute("SELECT id FROM artigos WHERE LOWER(titulo) = LOWER(?)", (titulo.strip(),)).fetchone()
+        if row:
+            conn.close()
+            return row["id"]
+    conn.close()
+    return None
+
+
 def contar_por_tipo_origem():
     conn = _conn()
     rows = conn.execute(
@@ -239,5 +314,60 @@ def contar_por_tipo_origem():
     return {r["tipo_origem"] or "sem_tipo": r["total"] for r in rows}
 
 
+def listar_tags():
+    conn = _conn()
+    rows = conn.execute("SELECT tags FROM artigos WHERE tags IS NOT NULL AND tags != '[]'").fetchall()
+    conn.close()
+    from collections import Counter
+
+    contagem = Counter()
+    for r in rows:
+        try:
+            for t in json.loads(r["tags"] or "[]"):
+                if isinstance(t, str) and t.strip():
+                    contagem[t.strip().lower()] += 1
+        except Exception:
+            continue
+    return [{"tag": tag, "quantidade": n} for tag, n in contagem.most_common()]
+
+
+def dashboard():
+    conn = _conn()
+    total_por_ano = dict(conn.execute(
+        "SELECT ano, COUNT(*) FROM artigos WHERE ano IS NOT NULL GROUP BY ano ORDER BY ano DESC"
+    ).fetchall())
+    total_por_fonte = dict(conn.execute(
+        "SELECT fonte, COUNT(*) FROM artigos GROUP BY fonte ORDER BY 2 DESC"
+    ).fetchall())
+    total_por_leitura = dict(conn.execute(
+        "SELECT read_status, COUNT(*) FROM artigos GROUP BY read_status"
+    ).fetchall())
+    total_por_pdf = dict(conn.execute(
+        "SELECT pdf_status, COUNT(*) FROM artigos GROUP BY pdf_status"
+    ).fetchall())
+    paginas = conn.execute(
+        "SELECT SUM(CASE WHEN progresso_leitura > 0 THEN 1 ELSE 0 END) AS sendo_lidos, SUM(progresso_leitura) AS paginas_lidas FROM artigos WHERE caminho_pdf IS NOT NULL"
+    ).fetchone()
+    conn.close()
+    return {
+        "por_ano": total_por_ano,
+        "por_fonte": total_por_fonte,
+        "por_leitura": total_por_leitura,
+        "por_pdf": total_por_pdf,
+        "paginas_lidas": int(paginas["paginas_lidas"] or 0),
+        "sendo_lidos": int(paginas["sendo_lidos"] or 0),
+    }
+
+
 def json_dumps(obj):
     return json.dumps(obj, ensure_ascii=False)
+
+
+def contar_paginas(caminho):
+    try:
+        from pypdf import PdfReader
+
+        leitor = PdfReader(caminho)
+        return len(leitor.pages)
+    except Exception:
+        return None

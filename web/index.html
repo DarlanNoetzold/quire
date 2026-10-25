@@ -3,77 +3,198 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Paper Reader</title>
+<meta name="theme-color" content="#0b0f1a">
+<title>Quire — Your research library</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2379c7ff' d='M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5zm2 12h11V5H6v12z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <div class="logo">📚 Paper Reader</div>
-  <nav>
-    <button class="aba ativa" data-aba="buscar">Search</button>
-    <button class="aba" data-aba="biblioteca">Library</button>
-    <button class="aba" data-aba="importar">Import</button>
-    <button class="aba" data-aba="config">Settings</button>
+<div id="app">
+<header class="topbar">
+  <div class="marca">
+    <span class="marca-emblema" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z" fill="currentColor" opacity=".9"/><path d="M8 7h8M8 10h8M8 13h5" stroke="rgba(0,0,0,.35)" stroke-width="1.2" stroke-linecap="round"/></svg>
+    </span>
+    <span class="marca-nome">Quire</span>
+    <span class="marca-tag">research library</span>
+  </div>
+  <nav class="abas" role="tablist">
+    <button class="aba ativa" data-aba="buscar" role="tab">Search</button>
+    <button class="aba" data-aba="tendencias" role="tab">Trending</button>
+    <button class="aba" data-aba="biblioteca" role="tab">Library</button>
+    <button class="aba" data-aba="importar" role="tab">Import</button>
+    <button class="aba" data-aba="config" role="tab">Settings</button>
   </nav>
+  <div class="topbar-acoes">
+    <span class="kbd-hint" title="Press / to search, B for library, S for search">shortcuts <kbd>/</kbd><kbd>B</kbd><kbd>S</kbd></span>
+    <button id="botao-tema" class="botao-tema" title="Toggle light/dark theme" aria-label="Toggle theme">🌙</button>
+  </div>
 </header>
+<input type="file" id="input-anexar-pdf" accept="application/pdf,.pdf" hidden>
 
 <main>
+  <!-- =================== SEARCH =================== -->
   <section id="aba-buscar" class="painel ativo">
-    <div class="bloco-busca">
-      <input id="campo-busca" type="text" placeholder="Keywords, title or author (e.g. machine learning health)..." autocomplete="off">
-      <button id="botao-buscar" class="primario">Search</button>
+    <div class="hero-busca">
+      <h1 class="hero-titulo">Find the science that matters</h1>
+      <p class="hero-sub">Search <b>16+ sources</b>, download open PDFs and generate structured summaries — all local and private.</p>
+      <div class="bloco-busca">
+        <div class="busca-caixa">
+          <span class="busca-icone" aria-hidden="true">⌕</span>
+          <input id="campo-busca" type="text" placeholder="Keywords, title or author... (e.g. machine learning in health)" autocomplete="off" spellcheck="false">
+          <button id="botao-buscar" class="primario">Search</button>
+        </div>
+      </div>
+      <div id="regex-linha" class="regex-linha">
+        <input id="regex-busca" type="text" placeholder="Filter results with regex (optional) — e.g. ^deep, learn\w+, crypto(graphy|currency)" autocomplete="off" spellcheck="false" title="Keep only results whose title, abstract, authors or classification match this pattern">
+        <label class="check-inline" title="If checked, uppercase and lowercase letters are considered equal"><input type="checkbox" id="regex-ci" checked> Ignore case</label>
+        <span id="regex-status" class="regex-status"></span>
+      </div>
+      <details class="ajuda-regex">
+        <summary>Regex tutorial — how the filter works</summary>
+        <div class="ajuda-regex-conteudo">
+          <p>The sources are searched with your keywords as usual. Then the <b>regex filter</b> keeps only the results whose <b>title, abstract, authors or classification</b> match the pattern. The filter is case-insensitive unless you uncheck "Ignore case"; <code>^</code> and <code>$</code> match the start/end of each field (title, abstract, authors, classification), not of the whole text.</p>
+          <table>
+            <tr><th>Pattern</th><th>Meaning</th><th>Matches</th></tr>
+            <tr><td><code>abc</code></td><td>Literal text</td><td>"abc"</td></tr>
+            <tr><td><code>a|b</code></td><td>a OR b</td><td>"cat" and "bat"</td></tr>
+            <tr><td><code>^deep</code> / <code>net$</code></td><td>Start / end of a field</td><td>"deep learning", "...network"</td></tr>
+            <tr><td><code>.</code></td><td>Any single character</td><td>"d.g" → "dig", "dog"</td></tr>
+            <tr><td><code>*</code> <code>+</code> <code>?</code></td><td>0+, 1+ or 0-1 times</td><td>"colou?r" → "color", "colour"</td></tr>
+            <tr><td><code>[abc]</code> / <code>[a-z]</code></td><td>One of the set</td><td>"gr[ae]y" → "gray", "grey"</td></tr>
+            <tr><td><code>[^x]</code></td><td>Anything except x</td><td>"gr[^a]y" → "grey"</td></tr>
+            <tr><td><code>\d</code> <code>\w</code> <code>\s</code></td><td>Digit / word char / whitespace</td><td>"\d{4}" → any year</td></tr>
+            <tr><td><code>\b</code></td><td>Word boundary</td><td>"\bnet\b" — not "internet"</td></tr>
+            <tr><td><code>(ab|cd)</code></td><td>Group with alternatives</td><td>"crypto(graphy|currency)"</td></tr>
+            <tr><td><code>{n,m}</code></td><td>Repeat n to m times</td><td>"\w{4,8}"</td></tr>
+          </table>
+          <p><b>Ready-made examples:</b></p>
+          <ul>
+            <li><code>^deep</code> — titles starting with "deep"</li>
+            <li><code>learn\w*</code> — learning, learner, learned…</li>
+            <li><code>\btransformers?\b</code> — the whole words "transformer" / "transformers"</li>
+            <li><code>attention.*(lstm|cnn)</code> — "attention" followed by "lstm" or "cnn"</li>
+            <li><code>smith \w+, john d\.</code> — authors named "Smith John D."</li>
+          </ul>
+          <p>If the pattern is invalid, the filter is ignored and a warning is shown. To test and learn more, see <a href="https://regex101.com" target="_blank" rel="noopener">regex101.com</a>.</p>
+        </div>
+      </details>
+      <div class="chips-rapidos" id="chips-rapidos"></div>
     </div>
-    <div class="filtros">
-      <select id="filtro-tipo-busca">
-        <option value="">Any source type</option>
-        <option value="artigo_periodico">Journal article</option>
-        <option value="preprint">Preprint</option>
-        <option value="revisao">Review</option>
-        <option value="capitulo_livro">Book chapter</option>
-        <option value="anais_congresso">Conference proceedings</option>
-        <option value="tese_dissertacao">Thesis/Dissertation</option>
-      </select>
-      <input id="ano-min" type="number" placeholder="Min year" min="1900" max="2100" style="width:100px">
-      <input id="ano-max" type="number" placeholder="Max year" min="1900" max="2100" style="width:100px">
-      <select id="filtro-fonte-busca" multiple title="Ctrl+click to select multiple sources">
-        <option value="openalex">OpenAlex</option>
-        <option value="arxiv">arXiv</option>
-        <option value="pubmed">PubMed</option>
-        <option value="crossref">Crossref</option>
-        <option value="doaj">DOAJ</option>
-        <option value="europepmc">Europe PMC</option>
-        <option value="semanticscholar">Semantic Scholar</option>
-        <option value="dblp">dblp</option>
-        <option value="hal">HAL</option>
-        <option value="zenodo">Zenodo</option>
-        <option value="openaire">OpenAIRE</option>
-      </select>
-      <select id="filtro-idioma-busca">
-        <option value="">Any language</option>
-        <option value="en">English</option>
-        <option value="pt">Portuguese</option>
-        <option value="es">Spanish</option>
-        <option value="fr">French</option>
-        <option value="de">German</option>
-      </select>
-      <label class="check-inline"><input type="checkbox" id="filtro-oa-busca"> Open access</label>
-      <select id="filtro-ord-busca">
-        <option value="">Most relevant</option>
-        <option value="ano_novo">Newest first</option>
-        <option value="ano_velho">Oldest first</option>
-        <option value="citacoes">Most cited</option>
-        <option value="titulo_az">Title A–Z</option>
-      </select>
-      <span id="status-busca" class="status-texto"></span>
-    </div>
+    <details class="filtros-colapsave" id="detalhes-filtros-busca" open>
+      <summary>Search filters <span class="badge-filtros" id="badge-filtros-busca">0</span></summary>
+      <div class="filtros">
+        <select id="filtro-tipo-busca">
+          <option value="">Any type</option>
+          <option value="artigo_periodico">Journal article</option>
+          <option value="preprint">Preprint</option>
+          <option value="revisao">Review</option>
+          <option value="capitulo_livro">Book chapter</option>
+          <option value="anais_congresso">Conference proceedings</option>
+          <option value="tese_dissertacao">Thesis/Dissertation</option>
+        </select>
+        <input id="ano-min" type="number" placeholder="Year from" min="1900" max="2100" style="width:100px">
+        <input id="ano-max" type="number" placeholder="Year to" min="1900" max="2100" style="width:100px">
+        <input id="autor-busca" type="text" placeholder="Author name">
+        <input id="assunto-busca" type="text" placeholder="Subject / phrase">
+        <input id="citacoes-min-busca" type="number" placeholder="Min citations" min="0" style="width:120px">
+        <label class="check-inline" title="Merge equivalent records by DOI or normalized title"><input type="checkbox" id="deduplicar-busca" checked> Deduplicate results</label>
+        <select id="filtro-idioma-busca">
+          <option value="">Any language</option>
+          <option value="en">English</option>
+          <option value="pt">Portuguese</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+        </select>
+        <label class="check-inline" title="Only open-access articles"><input type="checkbox" id="filtro-oa-busca"> Open access</label>
+        <select id="filtro-ord-busca">
+          <option value="">Most relevant</option>
+          <option value="ano_novo">Newest</option>
+          <option value="ano_velho">Oldest</option>
+          <option value="citacoes">Most cited</option>
+          <option value="titulo_az">Title A–Z</option>
+        </select>
+        <details class="multi-fonte" id="fonte-det-busca">
+          <summary><span>Sources (Ctrl+click)</span></summary>
+          <select id="filtro-fonte-busca" multiple size="9" title="Ctrl+click for multiple">
+            <option value="openalex">OpenAlex</option>
+            <option value="arxiv">arXiv</option>
+            <option value="pubmed">PubMed</option>
+            <option value="crossref">Crossref</option>
+            <option value="doaj">DOAJ</option>
+            <option value="europepmc">Europe PMC</option>
+            <option value="semanticscholar">Semantic Scholar</option>
+            <option value="dblp">dblp</option>
+            <option value="hal">HAL</option>
+            <option value="zenodo">Zenodo</option>
+            <option value="openaire">OpenAIRE</option>
+            <option value="plos">PLOS</option>
+            <option value="openreview">OpenReview</option>
+            <option value="osf">OSF Preprints</option>
+            <option value="figshare">Figshare</option>
+            <option value="datacite">DataCite</option>
+          </select>
+        </details>
+      </div>
+    </details>
+    <span id="status-busca" class="status-texto"></span>
     <div id="resultados-busca" class="lista"></div>
   </section>
 
+  <!-- =================== TRENDING =================== -->
+  <section id="aba-tendencias" class="painel">
+    <div class="painel-cabecalho">
+      <h2>Trending in your field</h2>
+      <p class="ajuda">Highlights, topics and papers of the day — click a topic to search it or add papers to your library.</p>
+    </div>
+    <div class="bloco-busca">
+      <select id="sel-periodo">
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+      <button id="botao-tendencias" class="primario">Refresh</button>
+    </div>
+    <span id="status-tendencias" class="status-texto"></span>
+    <p id="aviso-area-tendencias" class="ajuda"></p>
+    <h3 class="secao-titulo">Highlights of the period</h3>
+    <div id="destaques-lista" class="lista"></div>
+    <h3 class="secao-titulo">Hot topics in your field</h3>
+    <div id="topicos-lista" class="chips"></div>
+    <p class="ajuda" id="dica-topicos">Click a topic to run a full search.</p>
+    <h3 class="secao-titulo" id="hf-titulo" hidden>Daily papers (Hugging Face community)</h3>
+    <div id="hf-lista" class="lista"></div>
+    <p class="ajuda" id="hf-dica" hidden>Today's trending ML papers from the community, via Hugging Face Daily Papers.</p>
+  </section>
+
+  <!-- =================== LIBRARY =================== -->
   <section id="aba-biblioteca" class="painel">
-    <div class="filtros">
+    <div id="faixa-stats" class="faixa-stats"></div>
+    <div id="painel-dashboard" class="painel-dashboard" hidden></div>
+
+    <div class="toolbar-biblioteca">
+      <input id="filtro-busca-biblioteca" type="text" placeholder="Search title, classification, notes..." class="busca-biblioteca">
+      <div class="toolbar-botoes">
+        <button id="btn-dashboard" class="secundario" title="Show/hide charts">Charts</button>
+        <button id="btn-resumir-todos" class="secundario" title="Generate summaries for all articles with a PDF that don't have one yet">Summarize all</button>
+        <details class="menu-exportar">
+          <summary class="secundario">Export</summary>
+          <div class="menu-exportar-lista">
+            <button id="exportar-bibtex">BibTeX (.bib)</button>
+            <button id="exportar-markdown">Markdown (.md)</button>
+            <button id="exportar-json">JSON</button>
+            <button id="exportar-backup">Full backup (.zip)</button>
+          </div>
+        </details>
+        <button id="limpar-filtros" class="secundario">Clear</button>
+      </div>
+    </div>
+
+    <div class="filtros-grid">
       <select id="filtro-categoria"></select>
       <select id="filtro-tipo">
-        <option value="">Any source type</option>
+        <option value="">Any type</option>
         <option value="artigo_periodico">Journal article</option>
         <option value="preprint">Preprint</option>
         <option value="revisao">Review</option>
@@ -82,42 +203,27 @@
         <option value="tese_dissertacao">Thesis/Dissertation</option>
       </select>
       <select id="filtro-status">
-        <option value="">Any PDF status</option>
-        <option value="nao_baixado">Not downloaded</option>
+        <option value="">Any PDF</option>
+        <option value="nao_baixado">No PDF</option>
         <option value="baixado">PDF downloaded</option>
         <option value="baixando">Downloading...</option>
         <option value="falha">Download failed</option>
         <option value="nao_disponivel">No open version</option>
       </select>
       <select id="filtro-resumo">
-        <option value="">Any summary status</option>
+        <option value="">Summary (any)</option>
         <option value="sim">Has summary</option>
         <option value="nao">No summary</option>
       </select>
-      <select id="filtro-fonte">
-        <option value="">Any source</option>
-        <option value="openalex">OpenAlex</option>
-        <option value="arxiv">arXiv</option>
-        <option value="semanticscholar">Semantic Scholar</option>
-        <option value="pubmed">PubMed</option>
-        <option value="crossref">Crossref</option>
-        <option value="doaj">DOAJ</option>
-        <option value="europepmc">Europe PMC</option>
-        <option value="manual">Manual import</option>
-      </select>
-      <select id="filtro-acesso">
-        <option value="">Open access (any)</option>
-        <option value="sim">Open access only</option>
-      </select>
       <select id="filtro-leitura">
-        <option value="">Any reading status</option>
+        <option value="">Reading (any)</option>
         <option value="nao_lido">Not read</option>
         <option value="lendo">Reading</option>
         <option value="lido">Read</option>
       </select>
       <select id="filtro-favoritos">
-        <option value="">All (favorites included)</option>
-        <option value="sim">Favorites only</option>
+        <option value="">All (with favorites)</option>
+        <option value="sim">Only favorites</option>
       </select>
       <select id="filtro-idioma">
         <option value="">Any language</option>
@@ -129,47 +235,70 @@
         <option value="zh">Chinese</option>
         <option value="ru">Russian</option>
       </select>
-      <input id="filtro-citacoes" type="number" placeholder="Min citations" min="0" style="width:110px">
       <select id="filtro-adicionado">
-        <option value="">Added (any time)</option>
+        <option value="">Added (any)</option>
         <option value="hoje">Today</option>
         <option value="7">Last 7 days</option>
         <option value="30">Last 30 days</option>
         <option value="90">Last 90 days</option>
       </select>
-      <input id="filtro-autor" type="text" placeholder="Filter by author..." style="width:170px">
-      <input id="filtro-ano-min" type="number" placeholder="From year" min="1900" max="2100" style="width:100px">
-      <input id="filtro-ano-max" type="number" placeholder="To year" min="1900" max="2100" style="width:100px">
-      <input id="filtro-busca-biblioteca" type="text" placeholder="Filter by title/classification...">
       <select id="filtro-ordenacao">
-        <option value="recente">Most recently added</option>
+        <option value="recente">Newest added</option>
         <option value="antigo">Oldest added</option>
         <option value="titulo_az">Title A–Z</option>
         <option value="titulo_za">Title Z–A</option>
-        <option value="ano_novo">Newest year</option>
-        <option value="ano_velho">Oldest year</option>
-        <option value="classificacao">Classification A–Z</option>
-        <option value="fonte">Source A–Z</option>
+        <option value="ano_novo">Year (new→old)</option>
+        <option value="ano_velho">Year (old→new)</option>
         <option value="citacoes">Most cited</option>
         <option value="favoritos">Favorites first</option>
+        <option value="lendo">Reading first</option>
+        <option value="ult_leitura">Last read</option>
         <option value="autor">Author A–Z</option>
       </select>
-      <button id="limpar-filtros" class="secundario">Clear</button>
+      <select id="filtro-fonte">
+        <option value="">Any source</option>
+        <option value="openalex">OpenAlex</option>
+        <option value="arxiv">arXiv</option>
+        <option value="pubmed">PubMed</option>
+        <option value="crossref">Crossref</option>
+        <option value="doaj">DOAJ</option>
+        <option value="europepmc">Europe PMC</option>
+        <option value="semanticscholar">Semantic Scholar</option>
+        <option value="dblp">dblp</option>
+        <option value="hal">HAL</option>
+        <option value="zenodo">Zenodo</option>
+        <option value="openaire">OpenAIRE</option>
+        <option value="plos">PLOS</option>
+        <option value="openreview">OpenReview</option>
+        <option value="osf">OSF Preprints</option>
+        <option value="figshare">Figshare</option>
+        <option value="datacite">DataCite</option>
+        <option value="manual">Manual import</option>
+      </select>
+      <input id="filtro-autor" type="text" placeholder="Filter by author..." style="width:170px">
+      <input id="filtro-ano-min" type="number" placeholder="Year from" min="1900" max="2100" style="width:100px">
+      <input id="filtro-ano-max" type="number" placeholder="Year to" min="1900" max="2100" style="width:100px">
+      <input id="filtro-citacoes" type="number" placeholder="Min citations" min="0" style="width:110px">
+      <select id="filtro-tag"></select>
     </div>
+    <div id="filtros-ativos" class="filtros-ativos"></div>
+    <span id="status-biblioteca" class="status-texto"></span>
     <div id="lista-biblioteca" class="lista"></div>
   </section>
 
+  <!-- =================== IMPORT =================== -->
   <section id="aba-importar" class="painel">
-    <h2>Import PDF manually</h2>
-    <p class="ajuda">Use this when no open-access version is available automatically (institutional access, SciELO, etc.). The PDF stays only on your computer.</p>
+    <h2>Import PDF</h2>
+    <p class="ajuda">Use this when there is no automatic open version (institutional access, SciELO, etc.). The PDF stays only on your computer. Title, authors, year and classification are filled automatically when the PDF contains a DOI.</p>
     <div id="zona-drop" class="drop">
-      <p>Drag the PDF here or <span class="link">click to choose</span></p>
+      <div class="drop-icone" aria-hidden="true">▤</div>
+      <p>Drag the PDF here or <span class="link">click to choose one</span></p>
       <input type="file" id="arquivo-import" accept="application/pdf" hidden>
       <div id="nome-arquivo" class="arquivo-nome"></div>
     </div>
     <div class="form-grid">
       <input id="imp-titulo" type="text" placeholder="Title (automatic if empty)">
-      <input id="imp-autores" type="text" placeholder="Authors (separate with ;)">
+      <input id="imp-autores" type="text" placeholder="Authors (separated by ;)">
       <input id="imp-ano" type="number" placeholder="Year" min="1900" max="2100">
       <input id="imp-classificacao" type="text" placeholder="Classification (e.g. Computer Science)">
       <input id="imp-categoria" type="text" placeholder="Library category (e.g. AI)">
@@ -178,6 +307,7 @@
     <span id="status-importar" class="status-texto"></span>
   </section>
 
+  <!-- =================== SETTINGS =================== -->
   <section id="aba-config" class="painel">
     <h2>Settings</h2>
     <div id="status-ferramentas" class="caixa-status"></div>
@@ -185,7 +315,7 @@
       <label>Summary provider
         <select id="cfg-provider">
           <option value="ollama">Local Ollama (free, PDFs never leave your PC)</option>
-          <option value="abacus">Abacus AI (online, uses credits/own key)</option>
+          <option value="abacus">Abacus AI (online, uses its own credit/key)</option>
         </select>
       </label>
       <label>Ollama model
@@ -199,7 +329,7 @@
       <label>Ollama URL
         <input id="cfg-ollama-url" type="text" value="http://127.0.0.1:11434">
       </label>
-      <label>Abacus API key (for the Abacus provider)
+      <label>Abacus API key (online provider)
         <input id="cfg-abacus-key" type="password" placeholder="Paste your key (stays only on your PC)">
       </label>
       <label>Abacus API URL
@@ -208,12 +338,36 @@
       <label>Abacus model
         <input id="cfg-abacus-model" type="text" value="route-llm">
       </label>
+      <label>Summary language
+        <select id="cfg-idioma-resumo">
+          <option value="English">English</option>
+          <option value="Portuguese">Portuguese</option>
+        </select>
+      </label>
+      <label>Research area (comma-separated terms — used in "Trending")
+        <input id="cfg-area-pesquisa" type="text" placeholder="e.g. machine learning, cryptography">
+      </label>
     </div>
+    <label class="rotulo-campos">Summary sections to generate
+      <div id="cfg-campos-resumo" class="check-campos"></div>
+      <div class="nova-campo">
+        <input id="cfg-novo-campo" type="text" placeholder="Name of the new section (e.g. Ablation studies)">
+        <input id="cfg-novo-campo-instr" type="text" placeholder="What to extract (optional)">
+        <button id="cfg-adicionar-campo" class="botao-mini">＋ Add</button>
+      </div>
+    </label>
     <button id="salvar-config" class="primario">Save settings</button>
     <span id="status-config" class="status-texto"></span>
+
+    <div class="painel-categorias">
+      <h3>Library categories</h3>
+      <p class="ajuda">Rename, change the color or delete. When you delete a category, its articles lose it.</p>
+      <div id="lista-categorias-admin" class="lista-categorias-admin"></div>
+    </div>
   </section>
 </main>
 
+  <!-- =================== DETAIL MODAL =================== -->
 <div id="modal-detalhe" class="modal-escuro" hidden>
   <div class="modal">
     <button id="fechar-modal" class="fechar">✕</button>
@@ -221,7 +375,27 @@
   </div>
 </div>
 
+  <!-- =================== READER MODAL =================== -->
+<div id="modal-leitor" class="modal-escuro" hidden>
+  <div class="modal modal-leitor">
+    <div class="leitor-toolbar">
+      <button id="leitor-fechar" class="fechar" title="Close reader (Esc)">✕</button>
+      <div class="leitor-titulo" id="leitor-titulo">Reading</div>
+      <div class="leitor-naveg">
+        <span id="leitor-pagina">Page 1</span>
+        <input id="leitor-progresso" type="range" min="0" max="100" value="0" title="Reading progress %">
+        <span id="leitor-pct">0%</span>
+        <button id="leitor-ant" class="botao-mini" title="Previous page">←</button>
+        <button id="leitor-prox" class="botao-mini" title="Next page">→</button>
+        <button id="leitor-marcar-lido" class="botao-mini" title="Mark as read">✓ Read</button>
+      </div>
+    </div>
+    <iframe id="leitor-iframe" title="PDF reader" src=""></iframe>
+  </div>
+</div>
+
 <div id="toast" class="toast" hidden></div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>
