@@ -27,6 +27,8 @@ data/
 
 # Arquivos de ambiente e segredos
 .env
+.env.*
+.env.bak
 .env.local
 *.key
 
