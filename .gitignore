@@ -1,5 +1,42 @@
+# Python & Ambientes Virtuais
+venv/
 .venv/
-data/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+# Bytecode & Caches Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Dados locais e arquivos gerados em runtime
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Arquivos de ambiente e segredos
+.env
+.env.local
+*.key
+
+# IDEs e Editores
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Sistema Operacional
 .DS_Store
+Thumbs.db
+desktop.ini
