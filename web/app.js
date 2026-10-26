@@ -122,6 +122,11 @@ async function carregarCategorias() {
   try { categorias = await api("/api/categorias"); } catch { categorias = []; }
   $("filtro-categoria").innerHTML = '<option value="">Category (all)</option>' +
     categorias.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join("");
+  const selectBib = $("imp-bib-categoria-select");
+  if (selectBib) {
+    selectBib.innerHTML = '<option value="">Existing category (or choose none)</option>' +
+      categorias.map(c => `<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join("");
+  }
 }
 function chipsRapidos() {
   $("chips-rapidos").innerHTML = SUGESTOES_BUSCA.map(s =>
@@ -542,6 +547,54 @@ $("botao-tendencias").addEventListener("click", carregarTendencias);
 $("sel-periodo").addEventListener("change", carregarTendencias);
 
 /* ---------------- Importar ---------------- */
+const zonaBib = $("zona-drop-bib");
+if (zonaBib) {
+  ["dragenter", "dragover"].forEach(ev => zonaBib.addEventListener(ev, e => { e.preventDefault(); zonaBib.classList.add("solto"); }));
+  ["dragleave", "drop"].forEach(ev => zonaBib.addEventListener(ev, e => { e.preventDefault(); zonaBib.classList.remove("solto"); }));
+  zonaBib.addEventListener("drop", e => {
+    const f = e.dataTransfer.files[0];
+    if (f) escolherArquivoBib(f);
+  });
+  zonaBib.addEventListener("click", () => $("arquivo-import-bib").click());
+  $("arquivo-import-bib").addEventListener("change", e => { if (e.target.files[0]) escolherArquivoBib(e.target.files[0]); });
+}
+function escolherArquivoBib(f) {
+  $("nome-arquivo-bib").textContent = f.name;
+}
+if ($("botao-importar-bib")) {
+  $("botao-importar-bib").addEventListener("click", async () => {
+    const f = $("arquivo-import-bib").files[0];
+    if (!f) { toast("Choose a .bib or .ris file first"); return; }
+    const catSel = $("imp-bib-categoria-select").value.trim();
+    const catNova = $("imp-bib-categoria-nova").value.trim();
+    const categoriaEscolhida = catNova || catSel;
+    const baixarPdfs = $("imp-bib-baixar-pdfs").checked;
+
+    const form = new FormData();
+    form.append("arquivo", f);
+    form.append("categoria", categoriaEscolhida);
+    form.append("baixar_pdfs", baixarPdfs);
+
+    $("status-importar-bib").textContent = "Importing & processing bibliography...";
+    try {
+      const r = await fetch("/api/importar/bibliografia", { method: "POST", body: form });
+      const res = await r.json();
+      if (!r.ok) {
+        $("status-importar-bib").textContent = "Error: " + (res.detail || "Failed to import");
+        return;
+      }
+      $("status-importar-bib").textContent = `✓ ${res.mensagem}`;
+      toast(`Imported: +${res.adicionados} new, ${res.duplicados} skipped`);
+      $("nome-arquivo-bib").textContent = "";
+      $("arquivo-import-bib").value = "";
+      $("imp-bib-categoria-nova").value = "";
+      await carregarCategorias();
+    } catch (e) {
+      $("status-importar-bib").textContent = "Error: " + e.message;
+    }
+  });
+}
+
 const zona = $("zona-drop");
 ["dragenter", "dragover"].forEach(ev => zona.addEventListener(ev, e => { e.preventDefault(); zona.classList.add("solto"); }));
 ["dragleave", "drop"].forEach(ev => zona.addEventListener(ev, e => { e.preventDefault(); zona.classList.remove("solto"); }));

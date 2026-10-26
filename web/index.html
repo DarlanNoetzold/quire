@@ -288,7 +288,34 @@
 
   <!-- =================== IMPORT =================== -->
   <section id="aba-importar" class="painel">
-    <h2>Import PDF</h2>
+    <h2>Import from Mendeley & Bibliographies</h2>
+    <p class="ajuda">Import reference files exported from <strong>Mendeley</strong>, Zotero, or EndNote (<strong>.bib</strong> BibTeX or <strong>.ris</strong>). This works in <strong>append mode</strong>: new articles are added and duplicates are safely skipped. You can assign a category to the batch and automatically queue open-access PDF downloads.</p>
+    <div id="zona-drop-bib" class="drop">
+      <div class="drop-icone" aria-hidden="true">📚</div>
+      <p>Drag your <strong>.bib</strong> or <strong>.ris</strong> file here or <span class="link">browse</span></p>
+      <input type="file" id="arquivo-import-bib" accept=".bib,.ris,.txt" hidden>
+      <div id="nome-arquivo-bib" class="arquivo-nome"></div>
+    </div>
+    <div class="form-grid">
+      <label>Target library category
+        <div style="display:flex; gap:8px;">
+          <select id="imp-bib-categoria-select" style="flex:1;">
+            <option value="">Existing category (or choose none)</option>
+          </select>
+          <input id="imp-bib-categoria-nova" type="text" placeholder="Or new category name" style="flex:1;">
+        </div>
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:22px; cursor:pointer;">
+        <input type="checkbox" id="imp-bib-baixar-pdfs" checked>
+        <span>Auto-search & queue open-access PDF download for items with DOI</span>
+      </label>
+    </div>
+    <button id="botao-importar-bib" class="primario">Import Library File (Append)</button>
+    <span id="status-importar-bib" class="status-texto"></span>
+
+    <hr style="margin: 28px 0; border: none; border-top: 1px solid var(--borda);">
+
+    <h2>Import Single PDF</h2>
     <p class="ajuda">Use this when there is no automatic open version (institutional access, SciELO, etc.). The PDF stays only on your computer. Title, authors, year and classification are filled automatically when the PDF contains a DOI.</p>
     <div id="zona-drop" class="drop">
       <div class="drop-icone" aria-hidden="true">▤</div>

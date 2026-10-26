@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 import urllib.parse
 import uuid
 import zipfile
@@ -275,6 +276,131 @@ def importar(arquivo: UploadFile = File(...), titulo: str = Form(""), autores: s
     jobs.iniciar_resumo(novo["id"])
     novo["metadados_auto"] = bool(metadados.get("doi"))
     return novo
+
+
+@app.post("/api/importar/bibliografia")
+async def importar_bibliografia(
+    arquivo: UploadFile = File(...),
+    formato: str = Form("auto"),
+    categoria: str = Form(""),
+    baixar_pdfs: bool = Form(True),
+):
+    """
+    Importa multiplos artigos a partir de arquivo BibTeX (.bib) ou RIS (.ris)
+    exportados de gerenciadores de referencia como Mendeley, Zotero e EndNote.
+    Opera em modo append: adiciona novos artigos e preserva os existentes sem duplicar.
+    """
+    from . import importer
+
+    nome_arquivo = (arquivo.filename or "").lower()
+    conteudo_bytes = await arquivo.read()
+    try:
+        conteudo = conteudo_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        conteudo = conteudo_bytes.decode("latin-1", errors="ignore")
+
+    # Detecta formato
+    fmt = formato.lower().strip()
+    if fmt == "auto":
+        if nome_arquivo.endswith(".bib") or "@" in conteudo:
+            fmt = "bibtex"
+        elif nome_arquivo.endswith(".ris") or re.search(r"^[A-Z0-9]{2}\s*-", conteudo, re.MULTILINE):
+            fmt = "ris"
+        else:
+            fmt = "bibtex"
+
+    if fmt in ("bib", "bibtex"):
+        registros = importer.parse_bibtex(conteudo)
+    elif fmt in ("ris",):
+        registros = importer.parse_ris(conteudo)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
+
+    if not registros:
+        return {
+            "total_processados": 0,
+            "adicionados": 0,
+            "duplicados": 0,
+            "erros": 0,
+            "artigos": [],
+            "mensagem": "No valid bibliographic entries found in the uploaded file.",
+        }
+
+    cat_id = None
+    if categoria.strip():
+        cat_id = db.add_categoria(categoria.strip())
+
+    importados = []
+    total_duplicados = 0
+    total_erros = 0
+
+    for reg in registros:
+        titulo = (reg.get("titulo") or "").strip()
+        doi = (reg.get("doi") or "").strip()
+
+        if not titulo:
+            continue
+
+        # Verifica duplicado (modo append seguro)
+        dup = db.encontrar_duplicado(doi=doi if doi else None, titulo=titulo)
+        if dup:
+            total_duplicados += 1
+            continue
+
+        dados = {
+            "titulo": titulo,
+            "autores": reg.get("autores", "[]"),
+            "ano": reg.get("ano"),
+            "doi": doi,
+            "resumo": reg.get("resumo", ""),
+            "tipo": reg.get("tipo", "article"),
+            "tipo_origem": reg.get("tipo_origem", "artigo_periodico"),
+            "classificacao": reg.get("classificacao") or None,
+            "url_pagina": reg.get("url_pagina", ""),
+            "tags": reg.get("tags", "[]"),
+            "fonte": reg.get("fonte", "mendeley"),
+            "pdf_status": "pendente" if (doi and baixar_pdfs) else "nenhum",
+            "pdf_mensagem": "Imported from Mendeley/Bib" if not doi else "Queued for automatic search",
+        }
+        if cat_id is not None:
+            dados["categoria_id"] = cat_id
+
+        # Se houver arquivo local de PDF especificado e ele existir, vincula ou copia
+        caminho_local = reg.get("arquivo_local", "").strip()
+        if caminho_local and os.path.isfile(caminho_local):
+            try:
+                base_nome = os.path.basename(caminho_local).replace(" ", "_")
+                dest = os.path.join(PDF_DIR, f"bib_{int(time.time())}_{base_nome}")
+                if not os.path.exists(dest):
+                    shutil.copy2(caminho_local, dest)
+                dados["caminho_pdf"] = dest
+                dados["pdf_status"] = "baixado"
+                dados["pdf_mensagem"] = "imported from local path"
+            except Exception:
+                pass
+
+        try:
+            novo = db.add_artigo(dados)
+            if novo:
+                importados.append(novo)
+
+                # Se já tem PDF baixado, agenda resumo por IA
+                if dados.get("pdf_status") == "baixado":
+                    jobs.iniciar_resumo(novo["id"])
+                elif doi and baixar_pdfs:
+                    # Dispara download assincrono de versao aberta via OpenAlex/Unpaywall
+                    jobs.iniciar_download(novo["id"])
+        except Exception:
+            total_erros += 1
+
+    return {
+        "total_processados": len(registros),
+        "adicionados": len(importados),
+        "duplicados": total_duplicados,
+        "erros": total_erros,
+        "artigos": importados,
+        "mensagem": f"Import completed: {len(importados)} added, {total_duplicados} skipped (already in library).",
+    }
 
 
 def _auto_metadados(leitor, caminho):
