@@ -22,11 +22,12 @@
     <button class="aba ativa" data-aba="buscar" role="tab">Search</button>
     <button class="aba" data-aba="tendencias" role="tab">Trending</button>
     <button class="aba" data-aba="biblioteca" role="tab">Library</button>
+    <button class="aba" data-aba="revisao" role="tab">Review</button>
     <button class="aba" data-aba="importar" role="tab">Import</button>
     <button class="aba" data-aba="config" role="tab">Settings</button>
   </nav>
   <div class="topbar-acoes">
-    <span class="kbd-hint" title="Press / to search, B for library, S for search">shortcuts <kbd>/</kbd><kbd>B</kbd><kbd>S</kbd></span>
+    <span class="kbd-hint" title="Press / to search, B for library, R for review, S for search">shortcuts <kbd>/</kbd><kbd>B</kbd><kbd>R</kbd><kbd>S</kbd></span>
     <button id="botao-tema" class="botao-tema" title="Toggle light/dark theme" aria-label="Toggle theme">🌙</button>
   </div>
 </header>
@@ -284,6 +285,59 @@
     <div id="filtros-ativos" class="filtros-ativos"></div>
     <span id="status-biblioteca" class="status-texto"></span>
     <div id="lista-biblioteca" class="lista"></div>
+  </section>
+
+  <!-- =================== SYSTEMATIC REVIEW =================== -->
+  <section id="aba-revisao" class="painel">
+    <div class="painel-cabecalho">
+      <h2>Systematic review workspace</h2>
+      <p class="ajuda">Create a review, screen summarized articles, review extracted numbers and export a CSV. Automatically detected values are candidates only—verify them against the paper before synthesis.</p>
+    </div>
+    <div class="review-toolbar">
+      <select id="review-select" aria-label="Select review"><option value="">Choose a review...</option></select>
+      <button id="review-nova" class="primario">＋ New review</button>
+      <button id="review-excluir" class="secundario" disabled>Delete review</button>
+    </div>
+    <form id="review-criar-form" class="review-create" hidden>
+      <input id="review-titulo" type="text" maxlength="250" placeholder="Review title (e.g. Adaptive cryptography in IoT)" required>
+      <input id="review-descricao" type="text" maxlength="2000" placeholder="Research question or notes (optional)">
+      <button class="primario" type="submit">Create</button>
+      <button class="secundario" type="button" id="review-cancelar">Cancel</button>
+    </form>
+    <div id="review-workspace" hidden>
+      <div id="review-stats" class="review-stats"></div>
+      <section class="review-subsection">
+        <div class="review-section-head">
+          <div><h3>Screen studies</h3><p class="ajuda">Only articles with a ready summary are eligible. Add an article to this review, then decide its status.</p></div>
+          <input id="review-busca" type="text" placeholder="Filter summarized studies by title or author">
+        </div>
+        <div id="review-disponiveis" class="review-articles"></div>
+      </section>
+      <section class="review-subsection">
+        <div class="review-section-head">
+          <div><h3>Selected studies</h3><p class="ajuda">Mark studies as included before extracting numeric candidates.</p></div>
+          <div class="review-actions">
+            <button id="review-detectar" class="secundario">Detect numeric values</button>
+            <a id="review-csv" class="secundario review-link" href="#">Export CSV</a>
+          </div>
+        </div>
+        <div id="review-selecionados" class="review-articles"></div>
+      </section>
+      <section class="review-subsection">
+        <div class="review-section-head">
+          <div><h3>Evidence extraction</h3><p class="ajuda">Edit candidate values, units and evidence; add page numbers from the original PDF for traceability.</p></div>
+          <button id="review-salvar-extracoes" class="primario">Save extraction table</button>
+        </div>
+        <div id="review-extracoes" class="review-table-wrap"></div>
+      </section>
+      <section class="review-subsection">
+        <h3>Charts</h3>
+        <p class="ajuda">Values are grouped only when both field and unit match. This does not perform a meta-analysis.</p>
+        <div id="review-graficos" class="review-charts"></div>
+      </section>
+    </div>
+    <div id="review-vazio" class="vazio">Create or select a review to begin.</div>
+    <span id="review-status" class="status-texto" aria-live="polite"></span>
   </section>
 
   <!-- =================== IMPORT =================== -->

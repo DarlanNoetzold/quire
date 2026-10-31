@@ -13,6 +13,7 @@ def _conn():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
@@ -69,6 +70,43 @@ def init_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_artigos_cat ON artigos(categoria_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_artigos_status ON artigos(pdf_status)")
     _migrar(conn)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS revisoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            descricao TEXT DEFAULT '',
+            criado_em TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS revisao_artigos (
+            revisao_id INTEGER NOT NULL REFERENCES revisoes(id) ON DELETE CASCADE,
+            artigo_id INTEGER NOT NULL REFERENCES artigos(id) ON DELETE CASCADE,
+            decisao TEXT NOT NULL DEFAULT 'pending' CHECK(decisao IN ('pending','included','excluded','maybe')),
+            motivo TEXT DEFAULT '',
+            PRIMARY KEY (revisao_id, artigo_id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS revisao_extracoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            revisao_id INTEGER NOT NULL,
+            artigo_id INTEGER NOT NULL,
+            campo TEXT NOT NULL,
+            valor REAL,
+            unidade TEXT DEFAULT '',
+            evidencia TEXT DEFAULT '',
+            pagina INTEGER,
+            UNIQUE(revisao_id, artigo_id, campo, unidade, evidencia),
+            FOREIGN KEY(revisao_id, artigo_id) REFERENCES revisao_artigos(revisao_id, artigo_id) ON DELETE CASCADE
+        )
+        """
+    )
     conn.commit()
     conn.close()
 
@@ -359,8 +397,176 @@ def dashboard():
     }
 
 
-def json_dumps(obj):
-    return json.dumps(obj, ensure_ascii=False)
+
+def criar_revisao(titulo, descricao=""):
+    titulo = (titulo or "").strip()
+    if not titulo:
+        raise ValueError("Review title is required")
+    conn = _conn()
+    cur = conn.execute(
+        "INSERT INTO revisoes (titulo, descricao, criado_em) VALUES (?, ?, ?)",
+        (titulo, (descricao or "").strip(), datetime.now(timezone.utc).isoformat(timespec="seconds")),
+    )
+    conn.commit()
+    revisao_id = cur.lastrowid
+    conn.close()
+    return get_revisao(revisao_id)["id"]
+
+
+def listar_revisoes():
+    conn = _conn()
+    rows = conn.execute(
+        """SELECT r.*, COUNT(CASE WHEN ra.decisao='included' THEN 1 END) AS incluidos,
+                  COUNT(ra.artigo_id) AS selecionados
+           FROM revisoes r LEFT JOIN revisao_artigos ra ON ra.revisao_id=r.id
+           GROUP BY r.id ORDER BY r.criado_em DESC"""
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_revisao(revisao_id):
+    conn = _conn()
+    row = conn.execute("SELECT * FROM revisoes WHERE id=?", (revisao_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def excluir_revisao(revisao_id):
+    conn = _conn()
+    conn.execute("DELETE FROM revisoes WHERE id=?", (revisao_id,))
+    conn.commit()
+    removido = conn.total_changes > 0
+    conn.close()
+    return removido
+
+
+def listar_artigos_revisao(revisao_id=None, decisao=None):
+    conn = _conn()
+    if revisao_id is None:
+        sql = "SELECT a.* FROM artigos a WHERE a.resumo_status='pronto' AND a.resumo_llm IS NOT NULL AND a.resumo_llm!='' ORDER BY a.ano DESC, a.titulo COLLATE NOCASE"
+        rows = conn.execute(sql).fetchall()
+    else:
+        sql = """SELECT a.*, ra.decisao, ra.motivo FROM artigos a
+                 JOIN revisao_artigos ra ON ra.artigo_id=a.id
+                 WHERE ra.revisao_id=? AND a.resumo_status='pronto' AND a.resumo_llm IS NOT NULL AND a.resumo_llm!=''"""
+        params = [revisao_id]
+        if decisao:
+            sql += " AND ra.decisao=?"
+            params.append(decisao)
+        sql += " ORDER BY a.ano DESC, a.titulo COLLATE NOCASE"
+        rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def atualizar_selecao_revisao(revisao_id, artigo_id, decisao, motivo=""):
+    if decisao not in {"pending", "included", "excluded", "maybe"}:
+        raise ValueError("Invalid review decision")
+    conn = _conn()
+    review_exists = conn.execute("SELECT 1 FROM revisoes WHERE id=?", (revisao_id,)).fetchone()
+    article = conn.execute("SELECT resumo_status,resumo_llm FROM artigos WHERE id=?", (artigo_id,)).fetchone()
+    if not review_exists:
+        conn.close()
+        raise LookupError("Review not found")
+    if not article:
+        conn.close()
+        raise LookupError("Article not found")
+    if article["resumo_status"] != "pronto" or not article["resumo_llm"]:
+        conn.close()
+        raise ValueError("Only articles with a ready summary can be added to a review")
+    conn.execute(
+        """INSERT INTO revisao_artigos (revisao_id,artigo_id,decisao,motivo) VALUES (?,?,?,?)
+           ON CONFLICT(revisao_id,artigo_id) DO UPDATE SET decisao=excluded.decisao,motivo=excluded.motivo""",
+        (revisao_id, artigo_id, decisao, (motivo or "").strip()),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM revisao_artigos WHERE revisao_id=? AND artigo_id=?", (revisao_id, artigo_id)).fetchone()
+    conn.close()
+    return dict(row)
+
+
+def remover_artigo_revisao(revisao_id, artigo_id):
+    conn = _conn()
+    conn.execute("DELETE FROM revisao_artigos WHERE revisao_id=? AND artigo_id=?", (revisao_id, artigo_id))
+    conn.commit()
+    removido = conn.total_changes > 0
+    conn.close()
+    return removido
+
+
+def listar_selecoes_revisao(revisao_id):
+    conn = _conn()
+    rows = conn.execute(
+        """SELECT ra.*, a.titulo, a.ano, a.autores, a.fonte FROM revisao_artigos ra
+           JOIN artigos a ON a.id=ra.artigo_id WHERE ra.revisao_id=?
+           ORDER BY a.ano DESC, a.titulo COLLATE NOCASE""",
+        (revisao_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def salvar_extracoes_revisao(revisao_id, extracoes):
+    conn = _conn()
+    if not conn.execute("SELECT 1 FROM revisoes WHERE id=?", (revisao_id,)).fetchone():
+        conn.close()
+        raise LookupError("Review not found")
+    saved = 0
+    for item in extracoes:
+        artigo_id = int(item["artigo_id"])
+        row = conn.execute(
+            "SELECT 1 FROM revisao_artigos WHERE revisao_id=? AND artigo_id=? AND decisao='included'",
+            (revisao_id, artigo_id),
+        ).fetchone()
+        if not row:
+            continue
+        campo = str(item.get("campo", "")).strip()[:100]
+        unidade = str(item.get("unidade", "")).strip()[:40]
+        if not campo:
+            continue
+        value = item.get("valor")
+        if value in (None, ""):
+            value = None
+        else:
+            value = float(value)
+            if not (-1e12 <= value <= 1e12):
+                raise ValueError("Numeric value is out of supported range")
+        pagina = item.get("pagina")
+        pagina = int(pagina) if pagina not in (None, "") else None
+        conn.execute(
+            """INSERT INTO revisao_extracoes (revisao_id,artigo_id,campo,valor,unidade,evidencia,pagina)
+               VALUES (?,?,?,?,?,?,?) ON CONFLICT(revisao_id,artigo_id,campo,unidade,evidencia)
+               DO UPDATE SET valor=excluded.valor,pagina=excluded.pagina""",
+            (revisao_id, artigo_id, campo, value, unidade, str(item.get("evidencia", ""))[:2000], pagina),
+        )
+        saved += 1
+    conn.commit()
+    conn.close()
+    return saved
+
+
+def listar_extracoes_revisao(revisao_id):
+    conn = _conn()
+    rows = conn.execute(
+        """SELECT e.*, a.titulo, a.ano FROM revisao_extracoes e
+           JOIN artigos a ON a.id=e.artigo_id WHERE e.revisao_id=?
+           ORDER BY e.campo, a.ano DESC, a.titulo COLLATE NOCASE""",
+        (revisao_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def estatisticas_revisao(revisao_id):
+    conn = _conn()
+    rows = conn.execute(
+        "SELECT decisao,COUNT(*) total FROM revisao_artigos WHERE revisao_id=? GROUP BY decisao",
+        (revisao_id,),
+    ).fetchall()
+    conn.close()
+    return {row["decisao"]: row["total"] for row in rows}
+
 
 
 def contar_paginas(caminho):

@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import re
@@ -21,7 +22,7 @@ class NoCacheStaticFiles(StaticFiles):
         resposta.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return resposta
 
-from . import db, downloader, jobs, sources, summarizer
+from . import db, downloader, jobs, review, sources, summarizer
 from .config import BASE_DIR, DATA_DIR, PDF_DIR, ensure_dirs
 
 app = FastAPI(title="Quire", version="2.0.0")
@@ -218,7 +219,11 @@ def abrir_pdf(artigo_id: int):
     artigo = db.get_artigo(artigo_id)
     if not artigo or not artigo.get("caminho_pdf") or not os.path.exists(artigo["caminho_pdf"]):
         raise HTTPException(404, "PDF not available")
-    return FileResponse(artigo["caminho_pdf"], media_type="application/pdf", filename=os.path.basename(artigo["caminho_pdf"]))
+    return FileResponse(
+        artigo["caminho_pdf"], media_type="application/pdf",
+        filename=os.path.basename(artigo["caminho_pdf"]),
+        content_disposition_type="inline",
+    )
 
 
 @app.post("/api/importar")
@@ -548,6 +553,137 @@ def info_leitura(artigo_id: int):
 @app.get("/api/dashboard")
 def dashboard():
     return db.dashboard()
+
+
+@app.get("/api/revisoes")
+def listar_revisoes():
+    return db.listar_revisoes()
+
+
+@app.post("/api/revisoes")
+def criar_revisao(dados: dict):
+    titulo = str(dados.get("titulo", "")).strip()
+    if not titulo:
+        raise HTTPException(400, "Review title is required")
+    try:
+        revisao_id = db.criar_revisao(titulo[:250], str(dados.get("descricao", ""))[:2000])
+        return db.get_revisao(revisao_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/revisao/artigos")
+def artigos_disponiveis_revisao(revisao_id: int | None = None):
+    if revisao_id is not None and not db.get_revisao(revisao_id):
+        raise HTTPException(404, "Review not found")
+    artigos = db.listar_artigos_revisao()
+    if revisao_id is not None:
+        selecionados = {a["artigo_id"] for a in db.listar_selecoes_revisao(revisao_id)}
+        artigos = [a for a in artigos if a["id"] not in selecionados]
+    for artigo in artigos:
+        try:
+            artigo["resumo_llm"] = json.loads(artigo.get("resumo_llm") or "{}")
+        except (TypeError, ValueError):
+            artigo["resumo_llm"] = {}
+    return artigos
+
+
+@app.get("/api/revisoes/{revisao_id}")
+def detalhe_revisao(revisao_id: int):
+    revisao = db.get_revisao(revisao_id)
+    if not revisao:
+        raise HTTPException(404, "Review not found")
+    artigos = db.listar_selecoes_revisao(revisao_id)
+    for artigo in artigos:
+        artigo_completo = db.get_artigo(artigo["artigo_id"]) or {}
+        try:
+            artigo["resumo_llm"] = json.loads(artigo_completo.get("resumo_llm") or "{}")
+        except (TypeError, ValueError, AttributeError):
+            artigo["resumo_llm"] = {}
+    return {
+        "revisao": revisao,
+        "artigos": artigos,
+        "extracoes": db.listar_extracoes_revisao(revisao_id),
+        "estatisticas": db.estatisticas_revisao(revisao_id),
+        "graficos": review.extraction_chart_data(revisao_id),
+    }
+
+
+@app.delete("/api/revisoes/{revisao_id}")
+def excluir_revisao(revisao_id: int):
+    if not db.excluir_revisao(revisao_id):
+        raise HTTPException(404, "Review not found")
+    return {"ok": True}
+
+
+@app.put("/api/revisoes/{revisao_id}/artigos/{artigo_id}")
+def selecionar_artigo_revisao(revisao_id: int, artigo_id: int, dados: dict):
+    try:
+        return db.atualizar_selecao_revisao(
+            revisao_id, artigo_id, dados.get("decisao", "pending"), dados.get("motivo", "")
+        )
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.delete("/api/revisoes/{revisao_id}/artigos/{artigo_id}")
+def remover_artigo_revisao(revisao_id: int, artigo_id: int):
+    if not db.remover_artigo_revisao(revisao_id, artigo_id):
+        raise HTTPException(404, "Article is not in this review")
+    return {"ok": True}
+
+
+@app.post("/api/revisoes/{revisao_id}/extracoes/detectar")
+def detectar_extracoes_revisao(revisao_id: int):
+    if not db.get_revisao(revisao_id):
+        raise HTTPException(404, "Review not found")
+    extracoes = []
+    for artigo in db.listar_artigos_revisao(revisao_id, decisao="included"):
+        try:
+            resumo = json.loads(artigo.get("resumo_llm") or "{}")
+        except (TypeError, ValueError):
+            resumo = {}
+        for item in review.extract_numeric_evidence(resumo):
+            item["artigo_id"] = artigo["id"]
+            extracoes.append(item)
+    salvas = db.salvar_extracoes_revisao(revisao_id, extracoes)
+    return {"detectadas": len(extracoes), "salvas": salvas}
+
+
+@app.put("/api/revisoes/{revisao_id}/extracoes")
+def salvar_extracoes_revisao(revisao_id: int, dados: dict):
+    if not db.get_revisao(revisao_id):
+        raise HTTPException(404, "Review not found")
+    extracoes = dados.get("extracoes", [])
+    if not isinstance(extracoes, list) or len(extracoes) > 5000:
+        raise HTTPException(400, "Invalid extraction list")
+    try:
+        salvas = db.salvar_extracoes_revisao(revisao_id, extracoes)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"salvas": salvas}
+
+
+@app.get("/api/revisoes/{revisao_id}/grafico")
+def grafico_revisao(revisao_id: int):
+    if not db.get_revisao(revisao_id):
+        raise HTTPException(404, "Review not found")
+    return review.extraction_chart_data(revisao_id)
+
+
+@app.get("/api/revisoes/{revisao_id}/csv")
+def csv_revisao(revisao_id: int):
+    if not db.get_revisao(revisao_id):
+        raise HTTPException(404, "Review not found")
+    output = io.StringIO()
+    review.write_csv(output, db.listar_extracoes_revisao(revisao_id))
+    return Response(
+        content="\\ufeff" + output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{review.csv_filename(revisao_id)}"'},
+    )
 
 
 @app.get("/api/tags")

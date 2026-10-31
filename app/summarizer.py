@@ -1,5 +1,7 @@
 import json
+import os
 import re
+import shutil
 import subprocess
 import time
 
@@ -154,14 +156,18 @@ def _postar_json(url, body, headers=None, timeout=600, tentativas=3):
 
 
 def chamar_ollama(mensagens, settings):
-    url = settings.get("ollama_base_url", "http://127.0.0.1:11434").rstrip("/") + "/v1/chat/completions"
+    base_url = settings.get("ollama_base_url", "http://127.0.0.1:11434").rstrip("/")
+    url = base_url + "/v1/chat/completions"
     body = {
         "model": settings.get("ollama_model", "qwen2.5:3b"),
         "messages": mensagens,
         "temperature": 0.2,
         "response_format": {"type": "json_object"},
     }
-    return _postar_json(url, body)
+    try:
+        return _postar_json(url, body)
+    except requests.ConnectionError as exc:
+        raise RuntimeError(f"Ollama server not reachable at {base_url}. Check that the Ollama service is running.") from exc
 
 
 def chamar_abacus(mensagens, settings):
@@ -231,12 +237,19 @@ def existe_modelo_exato(modelo):
 
 
 def baixar_modelo(modelo, progresso=None):
-    proc = subprocess.Popen(
-        ["ollama", "pull", modelo],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    ollama_bin = shutil.which("ollama") or ("/usr/local/bin/ollama" if os.path.isfile("/usr/local/bin/ollama") else None)
+    if not ollama_bin:
+        return False, "Ollama executable was not found. Install Ollama and ensure it is in PATH."
+    try:
+        proc = subprocess.Popen(
+            [ollama_bin, "pull", modelo],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    except FileNotFoundError:
+        return False, "Ollama executable was not found. Install Ollama and ensure it is in PATH."
+
     ultima = ""
     for linha in proc.stdout:
         linha = linha.strip()

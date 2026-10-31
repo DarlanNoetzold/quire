@@ -145,6 +145,7 @@ document.querySelectorAll(".aba").forEach(b => {
     b.classList.add("ativa");
     $("aba-" + b.dataset.aba).classList.add("ativo");
     if (b.dataset.aba === "biblioteca") listarBiblioteca();
+    if (b.dataset.aba === "revisao") carregarRevisoes();
     if (b.dataset.aba === "tendencias") carregarTendencias();
     if (b.dataset.aba === "config") { carregarConfig(); carregarCategoriasAdmin(); }
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -159,6 +160,8 @@ document.addEventListener("keydown", (e) => {
     $("campo-busca").focus();
   } else if ((e.key === "b" || e.key === "B") && !emCampo) {
     document.querySelector('.aba[data-aba="biblioteca"]').click();
+  } else if ((e.key === "r" || e.key === "R") && !emCampo) {
+    document.querySelector('.aba[data-aba="revisao"]').click();
   } else if (e.key === "s" && !emCampo) {
     document.querySelector('.aba[data-aba="buscar"]').click();
   } else if (e.key === "Escape" && !$("modal-leitor").hidden) {
@@ -447,7 +450,213 @@ async function salvarDaBusca(r) {
   }
 }
 
-/* ---------------- Resumir todos ---------------- */
+/* ---------------- Systematic review workspace ---------------- */
+let _reviewId = null;
+let _reviewAvailable = [];
+let _reviewSelected = [];
+let _reviewExtractions = [];
+
+$("review-nova").addEventListener("click", () => {
+  $("review-criar-form").hidden = false;
+  $("review-titulo").focus();
+});
+$("review-cancelar").addEventListener("click", () => {
+  $("review-criar-form").reset();
+  $("review-criar-form").hidden = true;
+});
+$("review-criar-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const review = await api("/api/revisoes", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ titulo: $("review-titulo").value, descricao: $("review-descricao").value }),
+    });
+    $("review-criar-form").reset();
+    $("review-criar-form").hidden = true;
+    await carregarRevisoes(review.id);
+    toast("Review created");
+  } catch (e) { toast("Error: " + e.message); }
+});
+$("review-select").addEventListener("change", () => carregarRevisao($("review-select").value));
+$("review-excluir").addEventListener("click", async () => {
+  if (!_reviewId || !confirm("Delete this review and its screening/extraction data? Library articles will not be deleted.")) return;
+  try {
+    await api(`/api/revisoes/${_reviewId}`, { method: "DELETE" });
+    _reviewId = null;
+    await carregarRevisoes();
+    toast("Review deleted");
+  } catch (e) { toast("Error: " + e.message); }
+});
+$("review-busca").addEventListener("input", renderArtigosDisponiveis);
+$("review-detectar").addEventListener("click", async () => {
+  if (!_reviewId) return;
+  try {
+    const result = await api(`/api/revisoes/${_reviewId}/extracoes/detectar`, { method: "POST" });
+    toast(`Detected ${result.detectadas} numeric candidates; saved ${result.salvas}. Verify against source papers.`);
+    await carregarRevisao(_reviewId);
+  } catch (e) { toast("Error: " + e.message); }
+});
+$("review-salvar-extracoes").addEventListener("click", salvarTabelaExtracoes);
+
+async function carregarRevisoes(selecionarId = null) {
+  try {
+    const reviews = await api("/api/revisoes");
+    const select = $("review-select");
+    const atual = selecionarId ?? _reviewId ?? select.value;
+    select.innerHTML = '<option value="">Choose a review...</option>' + reviews.map(r =>
+      `<option value="${r.id}">${esc(r.titulo)} (${r.incluidos || 0} included)</option>`).join("");
+    if (atual && reviews.some(r => String(r.id) === String(atual))) {
+      select.value = atual;
+      await carregarRevisao(atual);
+    } else {
+      _reviewId = null;
+      $("review-workspace").hidden = true;
+      $("review-vazio").hidden = false;
+      $("review-excluir").disabled = true;
+    }
+  } catch (e) { $("review-status").textContent = "Could not load reviews: " + e.message; }
+}
+
+async function carregarRevisao(id) {
+  _reviewId = id ? Number(id) : null;
+  $("review-workspace").hidden = !_reviewId;
+  $("review-vazio").hidden = Boolean(_reviewId);
+  $("review-excluir").disabled = !_reviewId;
+  if (!_reviewId) return;
+  try {
+    const [data, available] = await Promise.all([
+      api(`/api/revisoes/${_reviewId}`), api(`/api/revisao/artigos?revisao_id=${_reviewId}`),
+    ]);
+    if (!data || !data.revisao) throw new Error("Invalid review response");
+    _reviewSelected = data.artigos || [];
+    _reviewExtractions = data.extracoes || [];
+    _reviewAvailable = available || [];
+    $("review-csv").href = `/api/revisoes/${_reviewId}/csv`;
+    renderReview(data);
+  } catch (e) {
+    $("review-status").textContent = "Could not load review: " + e.message;
+    $("review-workspace").hidden = false;
+    $("review-status").hidden = false;
+  }
+}
+
+function resumoCurto(summary) {
+  if (!summary || typeof summary !== "object") return "";
+  return Object.entries(summary).slice(0, 2).map(([key, value]) =>
+    `<span><b>${esc(ROTULO_CAMPOS[key] || key)}:</b> ${esc(String(value).slice(0, 220))}${String(value).length > 220 ? "…" : ""}</span>`
+  ).join("");
+}
+
+function renderArtigosDisponiveis() {
+  const term = $("review-busca").value.trim().toLocaleLowerCase();
+  const selectedIds = new Set(_reviewSelected.map(a => Number(a.artigo_id)));
+  const list = _reviewAvailable.filter(a => !selectedIds.has(Number(a.id)) &&
+    (!term || `${a.titulo} ${autoresHtml(a.autores, 20)}`.toLocaleLowerCase().includes(term)));
+  $("review-disponiveis").innerHTML = list.length ? list.map(a => {
+    let summary = a.resumo_llm;
+    if (typeof summary === "string") { try { summary = JSON.parse(summary); } catch { summary = {}; } }
+    return `<article class="review-article"><div><h4>${esc(a.titulo)}</h4><p>${esc(autoresHtml(a.autores, 5))} · ${esc(a.ano || "Year unknown")} · ${esc(ROTULO_FONTE[a.fonte] || a.fonte)}</p><div class="review-summary">${resumoCurto(summary)}</div></div><button class="secundario" onclick="adicionarArtigoRevisao(${a.id})">Add</button></article>`;
+  }).join("") : '<p class="vazio">No other summarized articles are available. Summarize articles in your Library first.</p>';
+}
+
+function renderSelecionados() {
+  $("review-selecionados").innerHTML = _reviewSelected.length ? _reviewSelected.map(a => `
+    <article class="review-article"><div><h4>${esc(a.titulo)}</h4><p>${esc(autoresHtml(a.autores, 5))} · ${esc(a.ano || "Year unknown")}</p><div class="review-summary">${resumoCurto(a.resumo_llm)}</div>
+    <label class="review-reason">Screening reason <input type="text" maxlength="500" value="${esc(a.motivo || "")}" id="review-reason-${a.artigo_id}" placeholder="Reason for inclusion/exclusion or screening note"></label></div>
+    <div class="review-decision"><select aria-label="Screening decision" onchange="mudarDecisaoRevisao(${a.artigo_id}, this.value)">
+      <option value="pending" ${a.decisao === "pending" ? "selected" : ""}>Pending</option>
+      <option value="included" ${a.decisao === "included" ? "selected" : ""}>Included</option>
+      <option value="excluded" ${a.decisao === "excluded" ? "selected" : ""}>Excluded</option>
+      <option value="maybe" ${a.decisao === "maybe" ? "selected" : ""}>Maybe</option>
+    </select><button class="botao-mini perigo" onclick="removerArtigoRevisao(${a.artigo_id})">Remove</button></div></article>`).join("") : '<p class="vazio">No studies selected for this review yet.</p>';
+}
+
+function renderExtracoes() {
+  const host = $("review-extracoes");
+  if (!_reviewExtractions.length) {
+    host.innerHTML = '<p class="vazio">No numeric values yet. Include studies, then select “Detect numeric values”.</p>';
+    return;
+  }
+  host.innerHTML = `<table class="review-table"><thead><tr><th>Study</th><th>Field</th><th>Value</th><th>Unit</th><th>Evidence</th><th>Page</th></tr></thead><tbody>${_reviewExtractions.map((e, i) => `
+    <tr data-extraction-index="${i}"><td>${esc(e.titulo)}</td><td><input data-field="campo" value="${esc(e.campo)}"></td><td><input data-field="valor" type="number" step="any" value="${e.valor ?? ""}"></td><td><input data-field="unidade" value="${esc(e.unidade || "")}"></td><td><textarea data-field="evidencia" rows="3">${esc(e.evidencia || "")}</textarea></td><td><input data-field="pagina" type="number" min="1" value="${e.pagina ?? ""}"></td></tr>`).join("")}</tbody></table>`;
+}
+
+function renderCharts(charts) {
+  const host = $("review-graficos");
+  const groups = (charts || []).filter(group => group.values.length);
+  if (!groups.length) { host.innerHTML = '<p class="vazio">Save numeric extractions to see charts.</p>'; return; }
+  host.innerHTML = groups.map(group => {
+    const max = Math.max(...group.values.map(Math.abs), 1);
+    return `<div class="review-chart"><h4>${esc(group.campo)} ${group.unidade ? `(${esc(group.unidade)})` : "(unit not specified)"}</h4>${group.values.map((value, i) => `<div class="review-chart-row"><span title="${esc(group.labels[i])}">${esc(group.labels[i])}</span><div class="review-chart-track"><div style="width:${Math.max(1, Math.abs(value) / max * 100)}%"></div></div><b>${esc(value)}</b></div>`).join("")}</div>`;
+  }).join("");
+}
+
+function renderReview(data) {
+  const stats = data.estatisticas || {};
+  $("review-stats").innerHTML = [
+    ["Included", stats.included || 0], ["Excluded", stats.excluded || 0],
+    ["Maybe", stats.maybe || 0], ["Pending", stats.pending || 0],
+  ].map(([label, value]) => `<span class="chip-stats"><b>${value}</b> ${label}</span>`).join("");
+  renderArtigosDisponiveis();
+  renderSelecionados();
+  renderExtracoes();
+  renderCharts(data.graficos || []);
+  $("review-status").textContent = `${data.revisao.titulo} · ${_reviewAvailable.length} summarized article(s) available`;
+}
+
+async function adicionarArtigoRevisao(artigoId) {
+  try {
+    await api(`/api/revisoes/${_reviewId}/artigos/${artigoId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decisao: "pending" }),
+    });
+    await carregarRevisao(_reviewId);
+  } catch (e) { toast("Error: " + e.message); }
+}
+
+async function mudarDecisaoRevisao(artigoId, decisao) {
+  const motivo = $("review-reason-" + artigoId)?.value || "";
+  try {
+    await api(`/api/revisoes/${_reviewId}/artigos/${artigoId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decisao, motivo }),
+    });
+    await carregarRevisao(_reviewId);
+  } catch (e) { toast("Error: " + e.message); }
+}
+
+async function removerArtigoRevisao(artigoId) {
+  try {
+    await api(`/api/revisoes/${_reviewId}/artigos/${artigoId}`, { method: "DELETE" });
+    await carregarRevisao(_reviewId);
+  } catch (e) { toast("Error: " + e.message); }
+}
+
+async function salvarTabelaExtracoes() {
+  if (!_reviewId) return;
+  const extracoes = [...document.querySelectorAll("#review-extracoes tbody tr")].map(row => {
+    const original = _reviewExtractions[Number(row.dataset.extractionIndex)];
+    const value = field => row.querySelector(`[data-field="${field}"]`).value;
+    return {
+      artigo_id: original.artigo_id, campo: value("campo"), valor: value("valor"),
+      unidade: value("unidade"), evidencia: value("evidencia"), pagina: value("pagina"),
+    };
+  });
+  try {
+    const result = await api(`/api/revisoes/${_reviewId}/extracoes`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ extracoes }),
+    });
+    toast(`${result.salvas} extraction(s) saved`);
+    await carregarRevisao(_reviewId);
+  } catch (e) { toast("Error: " + e.message); }
+}
+
+async function carregarRevisaoAtualizada() {
+  if (_reviewId) await carregarRevisao(_reviewId);
+}
+
+
 $("btn-resumir-todos").addEventListener("click", async () => {
   if (!confirm("Generate summaries for articles with a PDF that don't have one yet? This may take a while.")) return;
   try {
@@ -984,7 +1193,9 @@ async function excluirCategoria(id) {
 let _estadoBiblioteca = null;
 setInterval(async () => {
   const ativo = document.querySelector(".aba.ativa");
-  if (ativo && ativo.dataset.aba === "biblioteca") {
+  if (ativo && ativo.dataset.aba === "revisao" && _reviewId) {
+    carregarRevisao(_reviewId);
+  } else if (ativo && ativo.dataset.aba === "biblioteca") {
     const artigos = await api("/api/artigos").catch(() => null);
     if (!artigos) return;
     const assinatura = artigos.map(a => `${a.id}|${a.pdf_status}|${a.resumo_status}`).join(";");
