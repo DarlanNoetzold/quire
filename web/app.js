@@ -35,6 +35,8 @@ let _idsBase = [];
 let _filtrosAtivos = {};
 let _leitorAtual = null;
 let _totalBiblioteca = 0;
+let _artigosExibidosBiblioteca = [];
+let _artigosSelecionados = new Set();
 let _detalheAtualId = null;
 let _ultimosResultados = [];
 
@@ -382,13 +384,77 @@ async function listarBiblioteca() {
     const artigos = await api("/api/artigos?" + params.toString());
     _totalBiblioteca = artigos.length;
     const div = $("lista-biblioteca");
+    _artigosExibidosBiblioteca = artigos;
+    const exibidosIds = new Set(artigos.map(a => Number(a.id)));
+    _artigosSelecionados = new Set([..._artigosSelecionados].filter(id => exibidosIds.has(id)));
     div.innerHTML = artigos.length
-      ? artigos.map(a => cartaoArtigo(a)).join("")
+      ? artigos.map(a => `<label class="selecao-artigo"><input type="checkbox" class="selecionar-artigo" data-id="${a.id}" ${_artigosSelecionados.has(Number(a.id)) ? "checked" : ""} aria-label="Select ${esc(a.titulo)}">${cartaoArtigo(a)}</label>`).join("")
       : '<p class="vazio">The library is empty. Search for articles, import PDFs or change the filters.</p>';
     $("status-biblioteca").textContent = artigos.length + " article(s)";
+    atualizarSelecaoArtigos();
     carregarStats();
   } catch (e) { toast("Erro: " + e.message); }
 }
+
+function atualizarSelecaoArtigos() {
+  const total = _artigosExibidosBiblioteca.length;
+  const qtd = _artigosSelecionados.size;
+  const chk = $("selecionar-todos-artigos");
+  const btn = $("excluir-artigos-selecionados");
+  const status = $("status-selecao-artigos");
+  if (status) status.textContent = `${qtd} of ${total} selected`;
+  if (btn) btn.disabled = qtd === 0;
+  if (chk) {
+    chk.disabled = total === 0;
+    chk.checked = total > 0 && qtd === total;
+    chk.indeterminate = qtd > 0 && qtd < total;
+  }
+}
+
+function alternarSelecaoTodosArtigos(checked) {
+  _artigosSelecionados = checked
+    ? new Set(_artigosExibidosBiblioteca.map(a => Number(a.id)))
+    : new Set();
+  document.querySelectorAll(".selecionar-artigo").forEach(i => {
+    i.checked = checked;
+  });
+  atualizarSelecaoArtigos();
+}
+
+async function excluirArtigosSelecionados() {
+  const ids = [..._artigosSelecionados];
+  if (!ids.length) return;
+  const mensagem = ids.length === 1
+    ? "Delete 1 selected article and its PDF?"
+    : `Delete ${ids.length} selected articles and their PDFs?`;
+  if (!confirm(mensagem)) return;
+  try {
+    const res = await api("/api/artigos", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    _artigosSelecionados.clear();
+    await listarBiblioteca();
+    toast(`${res.deleted || ids.length} article(s) deleted`);
+  } catch (e) {
+    toast("Error: " + e.message);
+  }
+}
+
+$("selecionar-todos-artigos")?.addEventListener("change", (e) => {
+  alternarSelecaoTodosArtigos(e.target.checked);
+});
+
+$("excluir-artigos-selecionados")?.addEventListener("click", excluirArtigosSelecionados);
+
+$("lista-biblioteca")?.addEventListener("change", (e) => {
+  if (!e.target.classList.contains("selecionar-artigo")) return;
+  const id = Number(e.target.dataset.id);
+  if (e.target.checked) _artigosSelecionados.add(id);
+  else _artigosSelecionados.delete(id);
+  atualizarSelecaoArtigos();
+});
 
 /* ---------------- Ações de artigo ---------------- */
 async function baixarPdf(id) {

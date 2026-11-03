@@ -283,6 +283,11 @@
       <select id="filtro-tag"></select>
     </div>
     <div id="filtros-ativos" class="filtros-ativos"></div>
+    <div class="toolbar-selecao" role="group" aria-label="Bulk article selection">
+      <label class="check-inline"><input id="selecionar-todos-artigos" type="checkbox"> Select all articles</label>
+      <span id="status-selecao-artigos" class="status-texto" aria-live="polite">0 selected</span>
+      <button id="excluir-artigos-selecionados" class="botao-mini perigo" disabled>Delete selected</button>
+    </div>
     <span id="status-biblioteca" class="status-texto"></span>
     <div id="lista-biblioteca" class="lista"></div>
   </section>

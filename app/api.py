@@ -178,12 +178,30 @@ def atualizar_artigo(artigo_id: int, dados: dict):
     return db.update_artigo(artigo_id, campos)
 
 
+@app.delete("/api/artigos")
+def excluir_artigos_em_lote(dados: dict):
+    ids = dados.get("ids") if isinstance(dados, dict) else None
+    if not isinstance(ids, list) or not ids or len(ids) > 5000 or any(
+        isinstance(item, bool) or not isinstance(item, int) or item <= 0 for item in ids
+    ):
+        raise HTTPException(400, "ids must be a non-empty list of positive integers (maximum 5000)")
+    artigos = db.excluir_artigos(ids)
+    for artigo in artigos:
+        caminho = artigo.get("caminho_pdf")
+        if caminho and os.path.isfile(caminho):
+            try:
+                os.remove(caminho)
+            except OSError:
+                pass
+    return {"ok": True, "deleted": len(artigos)}
+
+
 @app.delete("/api/artigos/{artigo_id}")
 def excluir_artigo(artigo_id: int):
     artigo = db.get_artigo(artigo_id)
     if not artigo:
         raise HTTPException(404, "Article not found")
-    if artigo.get("caminho_pdf") and os.path.exists(artigo["caminho_pdf"]):
+    if artigo.get("caminho_pdf") and os.path.isfile(artigo["caminho_pdf"]):
         try:
             os.remove(artigo["caminho_pdf"])
         except OSError:

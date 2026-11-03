@@ -296,11 +296,32 @@ def update_artigo(artigo_id, campos):
     return get_artigo(artigo_id)
 
 
-def delete_artigo(artigo_id):
+def excluir_artigo(artigo_id):
     conn = _conn()
     conn.execute("DELETE FROM artigos WHERE id = ?", (artigo_id,))
     conn.commit()
     conn.close()
+
+
+def excluir_artigos(ids):
+    if not ids:
+        return []
+    conn = _conn()
+    try:
+        conn.execute("BEGIN")
+        marks = ", ".join("?" for _ in ids)
+        rows = conn.execute(
+            f"SELECT id, caminho_pdf FROM artigos WHERE id IN ({marks})",
+            ids,
+        ).fetchall()
+        conn.execute(f"DELETE FROM artigos WHERE id IN ({marks})", ids)
+        conn.commit()
+        return [dict(row) for row in rows]
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def estatisticas():

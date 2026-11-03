@@ -232,6 +232,13 @@ select[multiple] { min-width: 200px; }
 
 /* ---------- Cards ---------- */
 .lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.selecao-artigo { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 10px; }
+.selecao-artigo > input { margin: 18px 0 0 4px; width: 16px; height: 16px; accent-color: var(--accento); }
+.selecao-artigo > .cartao { min-width: 0; }
+.toolbar-selecao { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0; }
+.toolbar-selecao .check-inline { display: inline-flex; align-items: center; gap: 7px; margin: 0; }
+.toolbar-selecao input[type="checkbox"] { accent-color: var(--accento); }
+.toolbar-selecao .status-texto { margin-right: auto; }
 .cartao {
   background: var(--superficie); border: 1px solid var(--borda-card); border-radius: 14px; padding: 16px 16px 14px;
   display: flex; flex-direction: column; gap: 9px; transition: box-shadow .18s, transform .18s, border-color .18s;
