@@ -1,137 +1,137 @@
 # Quire
 
-**Biblioteca de pesquisa local e privada.** Busca unificada em 16 fontes acadêmicas, download de PDFs em acesso aberto, resumos estruturados por LLM, leitor integrado, revisão sistemática com extração de evidências numéricas e exportação em BibTeX, JSON, Markdown e backup completo em ZIP.
+**Local and private research library.** Unified search across 16 academic sources, open-access PDF retrieval, LLM-generated structured summaries, an integrated reader, systematic review with numeric-evidence extraction, and export to BibTeX, JSON, Markdown and full ZIP backups.
 
-Versão atual: **1.24** · Roda 100% na sua máquina · SQLite + FastAPI + interface web sem build
-
----
-
-## Sumário
-
-- [O que é](#o-que-é)
-- [Recursos](#recursos)
-- [Requisitos](#requisitos)
-- [Instalação rápida](#instalação-rápida)
-- [Execução com Docker](#execução-com-docker)
-- [Instalação manual](#instalação-manual)
-- [Execução em segundo plano com PM2](#execução-em-segundo-plano-com-pm2)
-- [Configuração](#configuração)
-- [Fluxo de uso](#fluxo-de-uso)
-- [API REST](#api-rest)
-- [Dados, backup e portabilidade](#dados-backup-e-portabilidade)
-- [Testes](#testes)
-- [Solução de problemas](#solução-de-problemas)
-- [Estrutura do projeto](#estrutura-do-projeto)
-- [Licença](#licença)
+Current version: **1.24** · Runs entirely on your machine · SQLite + FastAPI + build-free web UI
 
 ---
 
-## O que é
+## Table of contents
 
-Quire é uma aplicação auto-hospedada que reúne descoberta, leitura e organização de literatura científica em um único workspace. Não há conta, telemetria ou servidor intermediário: os artigos, PDFs, anotações e resumos ficam em um banco SQLite e em uma pasta local. As únicas chamadas externas são as APIs públicas de busca (OpenAlex, arXiv, Crossref etc.) e, opcionalmente, um provedor de LLM para resumos.
+- [What it is](#what-it-is)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Quick install](#quick-install)
+- [Running with Docker](#running-with-docker)
+- [Manual installation](#manual-installation)
+- [Running in the background with PM2](#running-in-the-background-with-pm2)
+- [Configuration](#configuration)
+- [Usage flow](#usage-flow)
+- [REST API](#rest-api)
+- [Data, backup and portability](#data-backup-and-portability)
+- [Tests](#tests)
+- [Troubleshooting](#troubleshooting)
+- [Project structure](#project-structure)
+- [License](#license)
 
-## Recursos
+---
 
-### Busca unificada em 16 fontes
-Consulta simultânea em OpenAlex, arXiv, PubMed, Crossref, DOAJ, Europe PMC, Semantic Scholar, dblp, HAL, Zenodo, OpenAIRE, PLOS, OpenReview, OSF, Figshare e DataCite, com deduplicação por DOI/título.
+## What it is
 
-Filtros: palavras-chave, tipo de publicação, intervalo de anos, fontes (multi-seleção), idioma, acesso aberto, autor, assunto e citações mínimas. Ordenação por relevância, mais recente, mais antigo, mais citado e título.
+Quire is a self-hosted application that brings scientific literature discovery, reading and organization into a single workspace. There is no account, no telemetry and no intermediary server: articles, PDFs, notes and summaries live in a local SQLite database and a local folder. The only outbound calls are to public search APIs (OpenAlex, arXiv, Crossref and others) and, optionally, to an LLM provider for summaries.
 
-### Destaques e monitoramento
-- Destaques em janelas de 7, 30 e 90 dias.
-- Monitoramento de tópicos configurável por área de pesquisa.
-- Atualizações diárias via Hugging Face Daily Papers.
-- Adição à biblioteca com um clique.
+## Features
 
-### Aquisição de PDF
-- Pipeline automático de resolução de DOI: OpenAlex → Unpaywall → Crossref, mais links primários de editoras.
-- Ingestão manual por arrastar-e-soltar para documentos pagos ou arquivos offline.
-- Extração automática de metadados (título, autores, ano, classificação) por DOI embutido no PDF.
+### Unified search across 16 sources
+Simultaneous queries against OpenAlex, arXiv, PubMed, Crossref, DOAJ, Europe PMC, Semantic Scholar, dblp, HAL, Zenodo, OpenAIRE, PLOS, OpenReview, OSF, Figshare and DataCite, with DOI/title deduplication.
 
-### Resumos estruturados
-- Campos configuráveis: objetivos, motivação, metodologia, resultados, contribuições, limitações, novidade, trabalhos relacionados, trabalhos futuros e setup experimental — além de campos personalizados.
-- Geração em inglês ou português.
-- Motores: **Ollama** local (nenhum dado sai da máquina) ou **Abacus AI** (`route-llm`) via API.
+Filters: keywords, publication type, year range, sources (multi-select), language, open access, author, subject and minimum citations. Sorting by relevance, newest, oldest, most cited and title.
 
-### Leitor integrado
-- Leitor de PDF no navegador com progresso de leitura por página.
-- Anotações em Markdown e notas vinculadas a cada artigo.
-- Tags de categorização com filtro e navegação.
-- Marcação de lido/não lido.
+### Trending and monitoring
+- Highlights over 7, 30 and 90-day windows.
+- Topic monitoring configurable per research area.
+- Daily paper updates via Hugging Face Daily Papers.
+- One-click addition to the library.
 
-### Organização e análise
-- Categorias com paleta de cores editável.
-- Filtros por categoria, tipo, fonte, status de PDF, status de resumo, leitura, favoritos, idioma, citações mínimas, autor e data de inclusão.
-- 12 critérios de ordenação, incluindo "em leitura primeiro" e "lido por último".
-- Painel estatístico com publicações por ano, distribuição por fonte e velocidade de leitura.
+### PDF acquisition
+- Automated DOI resolution pipeline: OpenAlex → Unpaywall → Crossref, plus primary publisher links.
+- Manual drag-and-drop ingestion for paywalled documents or offline files.
+- Automatic metadata extraction (title, authors, year, classification) from the DOI embedded in the PDF.
 
-### Revisão sistemática
-- Criação de revisões com título e descrição, agregando artigos da biblioteca.
-- Detecção automática de evidências numéricas nos resumos (percentuais, amostras, métricas como F1, AUC, RMSE).
-- Edição manual das extrações, gráfico comparativo por campo/unidade e exportação em CSV.
+### Structured summaries
+- Configurable fields: objectives, motivation, methodology, results, contributions, limitations, novelty, related work, future work and experimental setup — plus custom fields.
+- Generation in English or Portuguese.
+- Engines: local **Ollama** (no data leaves the machine) or **Abacus AI** (`route-llm`) over the API.
 
-### Exportação e backup
-- BibTeX, JSON e Markdown (artigo individual ou biblioteca inteira).
-- Backup completo do banco e do repositório de PDFs em um ZIP.
+### Integrated reader
+- In-browser PDF reader with per-page reading progress.
+- Markdown annotations and notes linked to each article.
+- Categorization tags with filtering and navigation.
+- Read/unread toggle.
 
-## Requisitos
+### Organization and analytics
+- Categories with an editable color palette.
+- Filters by category, type, source, PDF status, summary status, reading state, favorites, language, minimum citations, author and date added.
+- 12 sorting dimensions, including "currently reading first" and "last read".
+- Statistical dashboard with publications by year, source distribution and reading velocity.
 
-| Item | Versão | Obrigatório |
+### Systematic review
+- Create reviews with a title and description, aggregating articles from the library.
+- Automatic detection of numeric evidence in summaries (percentages, sample sizes, metrics such as F1, AUC, RMSE).
+- Manual editing of extractions, comparative chart by field/unit and CSV export.
+
+### Export and backup
+- BibTeX, JSON and Markdown (single article or the whole library).
+- Full backup of the database and PDF repository as a single ZIP.
+
+## Requirements
+
+| Item | Version | Required |
 |---|---|---|
-| Python | 3.10+ | Sim |
-| curl | qualquer | Sim (instalador) |
-| Docker + Compose | 20.10+ | Apenas para o modo Docker |
-| Node.js + PM2 | 16+ | Apenas para o modo PM2 |
-| Ollama | recente | Opcional (resumos locais) |
-| Chave Abacus AI | — | Opcional (resumos na nuvem) |
+| Python | 3.10+ | Yes |
+| curl | any | Yes (installer) |
+| Docker + Compose | 20.10+ | Docker mode only |
+| Node.js + PM2 | 16+ | PM2 mode only |
+| Ollama | recent | Optional (local summaries) |
+| Abacus AI key | — | Optional (cloud summaries) |
 
-## Instalação rápida
+## Quick install
 
-Um comando instala dependências, cria o ambiente virtual, registra o comando `quire` e sobe o servidor:
+A single command installs dependencies, creates the virtual environment, registers the `quire` command and starts the server:
 
 ```bash
 git clone --branch v1.24 --depth 1 https://github.com/DarlanNoetzold/quire.git
 cd quire && ./install.sh
 ```
 
-Ao final, abra **http://localhost:8000**.
+When it finishes, open **http://localhost:8000**.
 
-Variáveis aceitas pelo instalador:
+Variables accepted by the installer:
 
-| Variável | Padrão | Efeito |
+| Variable | Default | Effect |
 |---|---|---|
-| `QUIRE_DIR` | `~/quire` | Diretório de instalação (modo remoto) |
-| `QUIRE_VERSION` | `v1.24` | Tag baixada quando não há código local |
-| `QUIRE_PORT` | `8000` | Porta HTTP |
-| `QUIRE_HOST` | `0.0.0.0` | Endereço de escuta |
-| `QUIRE_NO_START` | `0` | `1` instala sem iniciar o servidor |
-| `QUIRE_FORCE` | `0` | `1` sobrescreve instalação existente |
-| `GITHUB_TOKEN` | — | Necessário para baixar de repositório privado |
+| `QUIRE_DIR` | `~/quire` | Install directory (remote mode) |
+| `QUIRE_VERSION` | `v1.24` | Tag downloaded when no local code is present |
+| `QUIRE_PORT` | `8000` | HTTP port |
+| `QUIRE_HOST` | `0.0.0.0` | Listen address |
+| `QUIRE_NO_START` | `0` | `1` installs without starting the server |
+| `QUIRE_FORCE` | `0` | `1` overwrites an existing installation |
+| `GITHUB_TOKEN` | — | Required to download from a private repository |
 
-Depois de instalado, o comando `quire` controla o serviço:
+Once installed, the `quire` command controls the service:
 
 ```bash
-quire start     # inicia em segundo plano e espera /api/health
-quire status    # mostra se está rodando e em qual porta
-quire logs      # acompanha data/quire.log
-quire stop      # encerra o processo
-quire restart   # reinicia
+quire start     # starts in the background and waits for /api/health
+quire status    # shows whether it is running and on which port
+quire logs      # follows data/quire.log
+quire stop      # terminates the process
+quire restart   # restarts
 ```
 
-## Execução com Docker
+## Running with Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-A interface fica em `http://localhost:8000` e o banco/PDFs em `./data` (volume persistente). Para outra porta: `QUIRE_PORT=8085 docker compose up -d`.
+The interface is served at `http://localhost:8000` and the database/PDFs live in `./data` (persistent volume). For another port: `QUIRE_PORT=8085 docker compose up -d`.
 
 ```bash
 docker compose logs -f     # logs
-docker compose down        # parar
+docker compose down        # stop
 ```
 
-## Instalação manual
+## Manual installation
 
 ```bash
 git clone https://github.com/DarlanNoetzold/quire.git
@@ -142,13 +142,13 @@ pip install -r requirements.txt
 uvicorn app.api:app --host 0.0.0.0 --port 8000
 ```
 
-Atalhos incluídos no repositório:
+Shortcuts included in the repository:
 
-- `./run.sh` — Linux/WSL, cria o venv se necessário e sobe com `--reload`.
-- `start.bat` — Windows, cria o venv, abre o navegador e sobe o servidor.
-- `./start_quire.sh` — Linux, sem reload, porta definida por `QUIRE_PORT` (padrão `8085`).
+- `./run.sh` — Linux/WSL, creates the venv if needed and starts with `--reload`.
+- `start.bat` — Windows, creates the venv, opens the browser and starts the server.
+- `./start_quire.sh` — Linux, no reload, port from `QUIRE_PORT` (default `8085`).
 
-## Execução em segundo plano com PM2
+## Running in the background with PM2
 
 ```bash
 npm install -g pm2
@@ -157,143 +157,143 @@ pm2 save
 pm2 startup
 ```
 
-No Windows, use `.venv\Scripts\python.exe -m uvicorn app.api:app --host 0.0.0.0 --port 8000`.
+On Windows, use `.venv\Scripts\python.exe -m uvicorn app.api:app --host 0.0.0.0 --port 8000`.
 
-## Configuração
+## Configuration
 
-As configurações ficam em `data/settings.json` e podem ser editadas pela tela **Settings** da interface (`GET/POST /api/configuracoes`).
+Settings live in `data/settings.json` and can be edited from the **Settings** screen (`GET/POST /api/configuracoes`).
 
-| Chave | Padrão | Descrição |
+| Key | Default | Description |
 |---|---|---|
-| `summary_provider` | `ollama` | `ollama` (local) ou `abacus` (nuvem) |
-| `ollama_base_url` | `http://127.0.0.1:11434` | Endpoint do Ollama |
-| `ollama_model` | `qwen2.5:3b` | Modelo usado nos resumos locais |
-| `abacus_base_url` | `https://routellm.abacus.ai/v1` | Endpoint compatível com OpenAI |
-| `abacus_model` | `route-llm` | Modelo do roteador Abacus |
-| `abacus_api_key` | vazio | Chave da API (mascarada na leitura) |
-| `max_chars` | `45000` | Limite de caracteres do texto enviado ao LLM |
-| `resumo_campos` | objetivos, metodologia, resultados, contribuições, limitações | Campos do resumo estruturado |
-| `resumo_campos_personalizados` | `[]` | Campos extras com rótulo e instrução |
-| `sumario_idioma` | `English` | `English` ou `Portuguese` |
-| `area_pesquisa` | tópicos padrão | Área usada no monitoramento e nos destaques |
-| `email_unpaywall` | `quire@example.com` | E-mail exigido pela API do Unpaywall |
-| `user_agent` | `Quire/1.24 ...` | User-Agent das requisições externas |
+| `summary_provider` | `ollama` | `ollama` (local) or `abacus` (cloud) |
+| `ollama_base_url` | `http://127.0.0.1:11434` | Ollama endpoint |
+| `ollama_model` | `qwen2.5:3b` | Model used for local summaries |
+| `abacus_base_url` | `https://routellm.abacus.ai/v1` | OpenAI-compatible endpoint |
+| `abacus_model` | `route-llm` | Abacus router model |
+| `abacus_api_key` | empty | API key (masked on read) |
+| `max_chars` | `45000` | Character limit of the text sent to the LLM |
+| `resumo_campos` | objectives, methodology, results, contributions, limitations | Structured summary fields |
+| `resumo_campos_personalizados` | `[]` | Extra fields with label and instruction |
+| `sumario_idioma` | `English` | `English` or `Portuguese` |
+| `area_pesquisa` | default topics | Area used for monitoring and highlights |
+| `email_unpaywall` | `quire@example.com` | Email required by the Unpaywall API |
+| `user_agent` | `Quire/1.24 ...` | User-Agent for outbound requests |
 
-Para resumos locais, o Ollama precisa estar ativo (`ollama serve`) e o modelo baixado (`ollama pull qwen2.5:3b`). O endpoint `GET /api/status-ferramentas` informa se o Ollama responde e se o modelo padrão está disponível.
+For local summaries, Ollama must be running (`ollama serve`) with the model pulled (`ollama pull qwen2.5:3b`). The `GET /api/status-ferramentas` endpoint reports whether Ollama responds and whether the default model is available.
 
-## Fluxo de uso
+## Usage flow
 
-1. **Search** — digite palavras-chave, ajuste filtros e fontes, adicione os resultados à biblioteca.
-2. **Library** — filtre, ordene, categorize e marque favoritos; use *Download* para buscar o PDF em acesso aberto ou *Import* para enviar um PDF local.
-3. **Summary** — gere o resumo estruturado (individual ou em lote por `POST /api/resumir-todos`).
-4. **Reader** — leia o PDF no navegador, registre progresso, notas e tags.
-5. **Review** — crie uma revisão, adicione artigos, detecte evidências numéricas e exporte o CSV.
-6. **Dashboard** — acompanhe estatísticas e destaques.
-7. **Settings** — configure provedor de LLM, campos do resumo, idioma e área de pesquisa.
+1. **Search** — enter keywords, adjust filters and sources, add results to the library.
+2. **Library** — filter, sort, categorize and favorite; use *Download* to fetch the open-access PDF or *Import* to upload a local PDF.
+3. **Summary** — generate the structured summary (single article or batch via `POST /api/resumir-todos`).
+4. **Reader** — read the PDF in the browser, track progress, notes and tags.
+5. **Review** — create a review, add articles, detect numeric evidence and export the CSV.
+6. **Dashboard** — follow statistics and highlights.
+7. **Settings** — configure the LLM provider, summary fields, language and research area.
 
-## API REST
+## REST API
 
-Documentação interativa em `http://localhost:8000/docs`.
+Interactive documentation at `http://localhost:8000/docs`.
 
-| Método | Rota | Função |
+| Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/health` | Verificação de saúde |
-| GET | `/api/busca` | Busca unificada nas fontes |
-| GET | `/api/destaques?dias=7` | Destaques por janela de dias |
-| GET | `/api/stats` | Estatísticas da biblioteca |
-| GET | `/api/dashboard` | Dados do painel |
-| GET | `/api/artigos` | Lista com filtros e ordenação |
-| POST | `/api/artigos` | Adiciona artigo |
-| GET | `/api/artigos/{id}` | Detalhe do artigo |
-| PATCH | `/api/artigos/{id}` | Atualiza campos |
-| DELETE | `/api/artigos/{id}` | Remove artigo |
-| DELETE | `/api/artigos` | Remoção em lote |
-| POST | `/api/artigos/{id}/download` | Baixa PDF em acesso aberto |
-| POST | `/api/artigos/{id}/pdf` | Envia PDF manualmente |
+| GET | `/api/health` | Health check |
+| GET | `/api/busca` | Unified search across sources |
+| GET | `/api/destaques?dias=7` | Highlights for a day window |
+| GET | `/api/stats` | Library statistics |
+| GET | `/api/dashboard` | Dashboard data |
+| GET | `/api/artigos` | List with filters and sorting |
+| POST | `/api/artigos` | Add article |
+| GET | `/api/artigos/{id}` | Article detail |
+| PATCH | `/api/artigos/{id}` | Update fields |
+| DELETE | `/api/artigos/{id}` | Delete article |
+| DELETE | `/api/artigos` | Bulk delete |
+| POST | `/api/artigos/{id}/download` | Download open-access PDF |
+| POST | `/api/artigos/{id}/pdf` | Upload PDF manually |
 | DELETE | `/api/artigos/{id}/pdf` | Remove PDF |
-| GET | `/api/artigos/{id}/pdf` | Serve o PDF |
-| GET | `/api/artigos/{id}/reader` | Metadados de leitura |
-| GET | `/api/artigos/{id}/metricas` | Métricas de citação |
-| GET | `/api/artigos/{id}/markdown` | Artigo em Markdown |
-| POST | `/api/artigos/{id}/resumir` | Gera resumo |
-| POST | `/api/resumir-todos` | Fila de resumos pendentes |
-| POST | `/api/importar` | Importa um PDF |
-| POST | `/api/importar/bibliografia` | Importa BibTeX/RIS |
-| GET | `/api/export?formato=bibtex\|json\|markdown` | Exporta a biblioteca |
-| GET | `/api/backup` | ZIP com banco e PDFs |
-| GET/POST | `/api/configuracoes` | Lê/grava configurações |
-| GET | `/api/status-ferramentas` | Estado do Ollama e do provedor |
-| GET/POST | `/api/categorias` | Lista/cria categorias |
-| PATCH/DELETE | `/api/categorias/{id}` | Edita/remove categoria |
-| GET | `/api/tags` | Lista tags |
-| GET/POST | `/api/revisoes` | Lista/cria revisões |
-| GET/DELETE | `/api/revisoes/{id}` | Detalhe/remove revisão |
-| PUT/DELETE | `/api/revisoes/{id}/artigos/{artigo_id}` | Adiciona/remove artigo da revisão |
-| POST | `/api/revisoes/{id}/extracoes/detectar` | Detecta evidências numéricas |
-| PUT | `/api/revisoes/{id}/extracoes` | Salva extrações |
-| GET | `/api/revisoes/{id}/grafico` | Dados do gráfico |
-| GET | `/api/revisoes/{id}/csv` | Exporta extrações em CSV |
+| GET | `/api/artigos/{id}/pdf` | Serve the PDF |
+| GET | `/api/artigos/{id}/reader` | Reading metadata |
+| GET | `/api/artigos/{id}/metricas` | Citation metrics |
+| GET | `/api/artigos/{id}/markdown` | Article as Markdown |
+| POST | `/api/artigos/{id}/resumir` | Generate summary |
+| POST | `/api/resumir-todos` | Queue pending summaries |
+| POST | `/api/importar` | Import a PDF |
+| POST | `/api/importar/bibliografia` | Import BibTeX/RIS |
+| GET | `/api/export?formato=bibtex\|json\|markdown` | Export the library |
+| GET | `/api/backup` | ZIP with database and PDFs |
+| GET/POST | `/api/configuracoes` | Read/write settings |
+| GET | `/api/status-ferramentas` | Ollama and provider status |
+| GET/POST | `/api/categorias` | List/create categories |
+| PATCH/DELETE | `/api/categorias/{id}` | Edit/remove category |
+| GET | `/api/tags` | List tags |
+| GET/POST | `/api/revisoes` | List/create reviews |
+| GET/DELETE | `/api/revisoes/{id}` | Review detail/removal |
+| PUT/DELETE | `/api/revisoes/{id}/artigos/{artigo_id}` | Add/remove article from review |
+| POST | `/api/revisoes/{id}/extracoes/detectar` | Detect numeric evidence |
+| PUT | `/api/revisoes/{id}/extracoes` | Save extractions |
+| GET | `/api/revisoes/{id}/grafico` | Chart data |
+| GET | `/api/revisoes/{id}/csv` | Export extractions as CSV |
 
-## Dados, backup e portabilidade
+## Data, backup and portability
 
-Tudo vive em `data/`:
+Everything lives under `data/`:
 
 ```
 data/
-├── biblioteca.db     # SQLite: artigos, categorias, tags, revisões, extrações
-├── settings.json     # configurações
-├── pdfs/             # PDFs baixados ou importados
-└── quire.log         # log do servidor (modo instalador)
+├── biblioteca.db     # SQLite: articles, categories, tags, reviews, extractions
+├── settings.json     # settings
+├── pdfs/             # downloaded or imported PDFs
+└── quire.log         # server log (installer mode)
 ```
 
-- Backup pela interface: `GET /api/backup` gera `quire-backup.zip` com banco e PDFs.
-- Restauração: pare o servidor, substitua o conteúdo de `data/` pelo do ZIP e reinicie.
-- `data/` está no `.gitignore`; nada de conteúdo pessoal vai para o repositório.
+- Backup from the UI: `GET /api/backup` produces `quire-backup.zip` with the database and PDFs.
+- Restore: stop the server, replace the contents of `data/` with the ZIP contents and restart.
+- `data/` is in `.gitignore`; no personal content goes into the repository.
 
-## Testes
+## Tests
 
 ```bash
 .venv/bin/python -m pytest tests/ -q
 ```
 
-Suíte atual: 20 testes (importação, revisão, extração, filtros de busca, resumo, remoção em lote) + 3 subtests. Execute a partir da raiz do projeto para que `app` seja importável.
+Current suite: 20 tests (import, review, extraction, search filters, summarization, bulk delete) + 3 subtests. Run it from the project root so that `app` is importable.
 
-## Solução de problemas
+## Troubleshooting
 
-| Sintoma | Causa provável | Correção |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| `ModuleNotFoundError: No module named 'app'` no pytest | pytest chamado fora da raiz | rode `.venv/bin/python -m pytest tests/ -q` na raiz |
-| `Falha ao criar o venv` | falta `python3-venv` | `sudo apt install python3-venv` |
-| Porta ocupada (`address already in use`) | outro processo na porta | `QUIRE_PORT=8085 ./install.sh` ou `quire stop` |
-| Resumos falham com `ollama` | Ollama parado ou modelo ausente | `ollama serve` e `ollama pull qwen2.5:3b` |
-| `401` no provedor Abacus | chave ausente/inválida | informe a chave em Settings |
-| PDF não baixado | artigo sem versão aberta | use *Import* com o PDF que você já possui |
-| Busca lenta | muitas fontes selecionadas | reduza as fontes ou o intervalo de anos |
+| `ModuleNotFoundError: No module named 'app'` in pytest | pytest invoked outside the root | run `.venv/bin/python -m pytest tests/ -q` from the root |
+| `Failed to create the venv` | `python3-venv` missing | `sudo apt install python3-venv` |
+| Port already in use (`address already in use`) | another process on the port | `QUIRE_PORT=8085 ./install.sh` or `quire stop` |
+| Summaries fail with `ollama` | Ollama stopped or model missing | `ollama serve` and `ollama pull qwen2.5:3b` |
+| `401` from the Abacus provider | missing/invalid key | set the key in Settings |
+| PDF not downloaded | article has no open version | use *Import* with the PDF you already have |
+| Slow search | too many sources selected | reduce the sources or the year range |
 
-## Estrutura do projeto
+## Project structure
 
 ```
 quire/
 ├── app/
-│   ├── api.py          # FastAPI: rotas, exportação, backup, estáticos
-│   ├── config.py       # diretórios, settings padrão, catálogo de campos
-│   ├── db.py           # schema SQLite, consultas, filtros, índices
-│   ├── sources.py      # 16 motores de busca + Unpaywall/Crossref/OpenAlex
-│   ├── downloader.py   # pipeline de PDF em acesso aberto
-│   ├── importer.py     # importação BibTeX/RIS
-│   ├── summarizer.py   # extração de texto e prompts estruturados
-│   ├── review.py       # revisão sistemática e evidências numéricas
-│   └── jobs.py         # workers assíncronos
-├── web/                # interface (HTML, CSS e JS sem build)
-├── tests/              # suíte pytest
-├── data/               # banco, PDFs e logs (gerado em runtime)
-├── install.sh          # instalador/launcher de um comando
-├── Dockerfile          # imagem de produção
-├── docker-compose.yml  # execução com um comando
+│   ├── api.py          # FastAPI: routes, export, backup, static files
+│   ├── config.py       # directories, default settings, field catalog
+│   ├── db.py           # SQLite schema, queries, filters, indexes
+│   ├── sources.py      # 16 search engines + Unpaywall/Crossref/OpenAlex
+│   ├── downloader.py   # open-access PDF pipeline
+│   ├── importer.py     # BibTeX/RIS import
+│   ├── summarizer.py   # text extraction and structured prompts
+│   ├── review.py       # systematic review and numeric evidence
+│   └── jobs.py         # asynchronous workers
+├── web/                # interface (HTML, CSS and JS, no build step)
+├── tests/              # pytest suite
+├── data/               # database, PDFs and logs (generated at runtime)
+├── install.sh          # single-command installer/launcher
+├── Dockerfile          # production image
+├── docker-compose.yml  # single-command run
 ├── run.sh / start.bat / start_quire.sh
 └── requirements.txt
 ```
 
-## Licença
+## License
 
-Uso pessoal e acadêmico. Consulte o autor antes de redistribuir.
+Personal and academic use. Contact the author before redistributing.
