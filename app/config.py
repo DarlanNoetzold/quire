@@ -20,7 +20,7 @@ DEFAULT_SETTINGS = {
     "sumario_idioma": "English",
     "area_pesquisa": "post-quantum cryptography, quantum computing, cybersecurity, machine learning, deep learning, reinforcement learning, internet of things, smart environments, self-adaptive systems, high performance computing, anomaly detection",
     "email_unpaywall": "quire@example.com",
-    "user_agent": "Quire/2.0 (https://github.com/darlan-noetzold/quire; local research library)",
+    "user_agent": "Quire/1.24 (https://github.com/DarlanNoetzold/quire; local research library)",
 }
 
 CATALOGO_CAMPOS = [

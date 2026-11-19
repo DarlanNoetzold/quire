@@ -25,7 +25,7 @@ class NoCacheStaticFiles(StaticFiles):
 from . import db, downloader, jobs, review, sources, summarizer
 from .config import BASE_DIR, DATA_DIR, PDF_DIR, ensure_dirs
 
-app = FastAPI(title="Quire", version="2.0.0")
+app = FastAPI(title="Quire", version="1.24.0")
 WEB_DIR = os.path.join(BASE_DIR, "web")
 
 

@@ -1,0 +1,12 @@
+services:
+  quire:
+    build: .
+    image: quire:1.24
+    container_name: quire
+    ports:
+      - "${QUIRE_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=${TZ:-UTC}
+    restart: unless-stopped

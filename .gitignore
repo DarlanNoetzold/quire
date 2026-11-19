@@ -24,6 +24,7 @@ data/
 *.sqlite
 *.sqlite3
 *.log
+/quire
 
 # Arquivos de ambiente e segredos
 .env
